@@ -7,7 +7,7 @@ import numpy as np
 
 from markwright.schemes.base import Detection
 
-from .null_model import NullModel, fit_bucket
+from .null_model import NullModel, fit_bucket, quality_for
 
 LENGTH_BUCKETS = (50, 100, 200, 400, 800, 1600)
 
@@ -16,14 +16,28 @@ def _bucket_of(n: int) -> int:
     return min(LENGTH_BUCKETS, key=lambda b: abs(b - n))
 
 
-def fit_null_by_length(null_detections: list[Detection]) -> dict:
-    """Group null statistics by nearest length bucket and fit each."""
+def fit_null_by_length(
+    null_detections: list[Detection],
+    corpus_ids: list[str] | None = None,
+    n_boot: int = 50,
+) -> dict:
+    """Group null statistics by nearest length bucket and fit each.
+
+    ``n_boot`` bootstrap re-fits per bucket are precomputed here (calibration
+    time) so verify-time interval queries are lookups, not GPD refits. Quality
+    is derived from the per-bucket sample sizes (small corpus → provisional)."""
     by_len: dict[int, list[float]] = defaultdict(list)
     name = null_detections[0].statistic_name if null_detections else "statistic"
     for d in null_detections:
         if d.scored_tokens > 0:
             by_len[_bucket_of(d.scored_tokens)].append(d.statistic_value)
-    model = NullModel(name, [fit_bucket(vals, L) for L, vals in sorted(by_len.items()) if len(vals) >= 20])
+    kept = {L: vals for L, vals in sorted(by_len.items()) if len(vals) >= 20}
+    model = NullModel(
+        name,
+        [fit_bucket(vals, L, n_boot=n_boot) for L, vals in kept.items()],
+        corpus_ids=corpus_ids or [],
+        quality=quality_for({L: len(v) for L, v in kept.items()}),
+    )
     return model.to_dict()
 
 

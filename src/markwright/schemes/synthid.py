@@ -23,6 +23,7 @@ from markwright.schemes.base import (
     Detector,
     GenerationConfig,
     KeyHandle,
+    TokenIds,
 )
 
 SCHEME_ID = "synthid-text"
@@ -145,13 +146,28 @@ class SynthIDTextAdapter:
             skip_first_ngram_calls=p.get("skip_first_ngram_calls", False),
         )
 
-    def detect(self, text: str, params: dict, key: KeyHandle | Detector, tokenizer_ref: str) -> Detection:
+    def detect(self, text: str | TokenIds, params: dict, key: KeyHandle | Detector, tokenizer_ref: str) -> Detection:
         _require_transformers()
         import torch
-        from transformers import AutoTokenizer
 
-        tok = AutoTokenizer.from_pretrained(tokenizer_ref)
-        ids = tok(text, return_tensors="pt", add_special_tokens=False)["input_ids"]
+        notes: list[str] = []
+        if isinstance(text, str):
+            # Text path: the tokenizer is REQUIRED (design §5: a detector run with
+            # the wrong tokenizer produces confident nonsense; no silent fallback).
+            from transformers import AutoTokenizer
+
+            tok = AutoTokenizer.from_pretrained(tokenizer_ref)
+            ids = tok(text, return_tensors="pt", add_special_tokens=False)["input_ids"]
+            eos_token_id = tok.eos_token_id
+        else:
+            # Token-ids path (design §5 `TokenIds`): no tokenizer, no network, no
+            # model — g-values are pure table lookups from ids + keys. Used by
+            # offline verification, calibration over pre-tokenized corpora, and
+            # the deterministic tier-2 tests. EOS masking is skipped (pre-tokenized
+            # corpora carry no EOS); noted on the Detection for transparency.
+            ids = torch.tensor([list(text)], dtype=torch.long)
+            eos_token_id = None
+            notes.append("eos_mask_skipped_token_ids_input")
         n_tokens = int(ids.shape[1])
 
         if isinstance(key, Detector):
@@ -163,15 +179,17 @@ class SynthIDTextAdapter:
             processor = self.apply(self.generate_config(params, key, tokenizer_ref))
 
         if n_tokens < params["ngram_len"] + 1:
-            return Detection("mean_g", 0.5, 0, notes=["too_short_for_ngram"])
+            return Detection("mean_g", 0.5, 0, notes=[*notes, "too_short_for_ngram"])
 
         g = processor.compute_g_values(ids)                           # [1, T-ngram+1, depth]
-        rep = processor.compute_context_repetition_mask(ids)          # [1, T-ngram+1]
-        eos = processor.compute_eos_token_mask(ids, tok.eos_token_id)[:, params["ngram_len"] - 1:]
-        mask = (rep * eos).bool()
+        mask = processor.compute_context_repetition_mask(ids)         # [1, T-ngram+1]
+        if eos_token_id is not None:
+            eos = processor.compute_eos_token_mask(ids, eos_token_id)[:, params["ngram_len"] - 1:]
+            mask = mask * eos
+        mask = mask.bool()
         scored = int(mask.sum())
         if scored == 0:
-            return Detection("mean_g", 0.5, 0, notes=["no_scorable_tokens"])
+            return Detection("mean_g", 0.5, 0, notes=[*notes, "no_scorable_tokens"])
 
         per_token = g.float().mean(dim=-1)[mask]                      # mean over depths per token
         mean_g = float(per_token.mean())
@@ -191,9 +209,9 @@ class SynthIDTextAdapter:
                 out = model(g_values=g.float(), mask=mask.float())
             post = float(out.posterior_probabilities[0])
             extra["bayesian_posterior"] = post
-            return Detection("bayesian_posterior", post, scored, analytic_p_value=None, extra=extra)
+            return Detection("bayesian_posterior", post, scored, analytic_p_value=None, extra=extra, notes=notes)
 
-        return Detection("mean_g", mean_g, scored, analytic_p_value=analytic_p, extra=extra)
+        return Detection("mean_g", mean_g, scored, analytic_p_value=analytic_p, extra=extra, notes=notes)
 
     def _processor_from_keys(self, params: dict, keys: list[int]):
         import torch

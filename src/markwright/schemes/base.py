@@ -7,7 +7,12 @@ and never imports scheme math directly.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Protocol, runtime_checkable
+from typing import Any, Iterable, Protocol, Sequence, runtime_checkable
+
+# Design §5: detect() accepts raw text OR pre-tokenized ids. The ids path needs
+# no tokenizer (and, for SynthID, no model at all), which is what makes offline
+# verification, deterministic tier-2 tests and tokenizer-free calibration possible.
+TokenIds = Sequence[int]
 
 
 @dataclass(frozen=True)
@@ -89,15 +94,15 @@ class SchemeAdapter(Protocol):
         """Return an in-process logits processor (HF LogitsProcessor or compatible callable)."""
         ...
 
-    def detect(self, text: str, params: dict, key: KeyHandle | Detector, tokenizer_ref: str) -> Detection: ...
+    def detect(self, text: str | TokenIds, params: dict, key: KeyHandle | Detector, tokenizer_ref: str) -> Detection: ...
 
     def calibrate(
         self,
         params: dict,
         key: KeyHandle,
         tokenizer_ref: str,
-        null_corpus: Iterable[str],
-        marked_corpus: Iterable[str] | None,
+        null_corpus: Iterable[str | TokenIds],
+        marked_corpus: Iterable[str | TokenIds] | None,
         edit_fractions: list[float],
         fpr_target: float,
     ) -> CalibrationReport: ...

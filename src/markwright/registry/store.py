@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS keys (
 CREATE TABLE IF NOT EXISTS results (
   result_id TEXT PRIMARY KEY, requested_at TEXT, requested_by TEXT, text_digest TEXT,
   token_count INTEGER, fpr_target REAL, band TEXT, best_match TEXT, payload TEXT);
+CREATE TABLE IF NOT EXISTS calibrations (
+  run_id TEXT PRIMARY KEY, config_id TEXT, created_at TEXT, created_by TEXT,
+  status TEXT, quality TEXT, report TEXT);
 """
 
 TRANSITIONS = {"draft": {"active", "retired"}, "active": {"deprecated"}, "deprecated": {"retired"}, "retired": set()}
@@ -123,6 +126,57 @@ class RegistryStore:
         self.db.execute("UPDATE configs SET calibration_ref=?, verification_defaults=? WHERE config_id=?",
                         (calibration_ref, json.dumps(vd), config_id))
         self.db.commit()
+
+    # calibrations -----------------------------------------------------------------------
+    def save_calibration(self, config_id: str, report: dict, by: str) -> dict:
+        self.db.execute(
+            "INSERT INTO calibrations VALUES (?,?,?,?,?,?,?)",
+            (report["run_id"], config_id, report["created_at"], by, "ran",
+             report["quality"], json.dumps(report)))
+        self.db.commit()
+        return self.get_calibration(report["run_id"])
+
+    def get_calibration(self, run_id: str) -> dict | None:
+        r = self.db.execute("SELECT * FROM calibrations WHERE run_id=?", (run_id,)).fetchone()
+        if not r:
+            return None
+        d = dict(r)
+        d["report"] = json.loads(d["report"])
+        return d
+
+    def list_calibrations(self, config_id: str) -> list[dict]:
+        rows = self.db.execute(
+            "SELECT run_id, config_id, created_at, created_by, status, quality FROM calibrations "
+            "WHERE config_id=? ORDER BY created_at", (config_id,))
+        return [dict(r) for r in rows]
+
+    def accept_calibration(self, run_id: str) -> dict:
+        """Mark a run accepted and point its config at it. Also records the
+        tokenizer hash on the config's verification defaults so the verify path
+        can detect a tokenizer swap (POC plan phase 3.1)."""
+        run = self.get_calibration(run_id)
+        if run is None:
+            raise KeyError(run_id)
+        cfg = self.get_config(run["config_id"])
+        if cfg is None:
+            raise KeyError(run["config_id"])
+        self.db.execute("UPDATE calibrations SET status='accepted' WHERE run_id=?", (run_id,))
+        vd = cfg["verification_defaults"]
+        vd["min_detectable_tokens"] = run["report"].get("min_detectable_tokens")
+        vd["tokenizer_hash"] = run["report"].get("tokenizer_hash")
+        self.db.execute("UPDATE configs SET calibration_ref=?, verification_defaults=? WHERE config_id=?",
+                        (run_id, json.dumps(vd), run["config_id"]))
+        self.db.commit()
+        return self.get_calibration(run_id)
+
+    def accepted_null_models(self) -> dict[str, dict]:
+        """config_id -> serialized null model for every config whose
+        calibration_ref points at an accepted run. Loaded at API startup."""
+        rows = self.db.execute(
+            "SELECT c.config_id AS config_id, cal.report AS report FROM configs c "
+            "JOIN calibrations cal ON cal.run_id = c.calibration_ref "
+            "WHERE cal.status='accepted'")
+        return {r["config_id"]: json.loads(r["report"])["null_model"] for r in rows}
 
     @staticmethod
     def _cfg(r: sqlite3.Row) -> dict:

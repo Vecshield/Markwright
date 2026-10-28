@@ -19,9 +19,28 @@ class Band(str, Enum):
 WEAK_CEILING = 0.05
 
 
-def band_for(p_adjusted: float | None, fpr_target: float, gate_ok: bool) -> tuple[Band, str]:
+def band_for(
+    p_adjusted: float | None,
+    fpr_target: float,
+    gate_ok: bool,
+    resolution_floor: float | None = None,
+) -> tuple[Band, str]:
+    """Map an adjusted p-value to an evidence band.
+
+    ``resolution_floor`` is the calibration's own limit (``NullModel.
+    resolution_floor()``). When the deployment asks for an FPR target finer
+    than the calibration can resolve, STRONG/MODERATE are refused — the system
+    must not claim precision its null sample cannot support (POC plan 1.3).
+    """
     if not gate_ok or p_adjusted is None:
         return Band.INSUFFICIENT, "text too short or too low-entropy to test"
+    capped = resolution_floor is not None and fpr_target < resolution_floor
+    if capped and p_adjusted <= WEAK_CEILING:
+        return Band.WEAK, (
+            f"calibration resolves p down to {resolution_floor:.1e}, coarser than the "
+            f"fpr_target ({fpr_target:.1e}); evidence capped at weak until recalibrated "
+            "on a larger null corpus"
+        )
     if p_adjusted <= fpr_target / 100:
         return Band.STRONG, f"p <= fpr_target/100 ({fpr_target / 100:.1e})"
     if p_adjusted <= fpr_target:

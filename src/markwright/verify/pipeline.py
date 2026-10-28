@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from markwright import __version__
-from markwright.schemes.base import Detection, Detector, KeyHandle, SchemeAdapter
+from markwright.schemes.base import Detection, Detector, KeyHandle, SchemeAdapter, TokenIds
 from markwright.stats.bands import PLAIN_TEXT, Band, band_for, one_in_n
 from markwright.stats.null_model import NullModel
 
@@ -60,15 +60,15 @@ class Result:
         return self.payload[k]
 
 
-def _digest(text: str, salt: bytes | None) -> str | None:
-    if salt is None:
-        return None
+def _digest(text: str | TokenIds, salt: bytes | None) -> str | None:
+    if salt is None or not isinstance(text, str):
+        return None   # token-ids submissions carry no normalisable text to digest
     norm = " ".join(text.split()).encode()
     return hmac.new(salt, norm, hashlib.sha256).hexdigest()
 
 
 def verify(
-    text: str,
+    text: str | TokenIds,
     candidates: list[Candidate],
     fpr_target: float,
     *,
@@ -77,24 +77,48 @@ def verify(
     requested_by: str | None = None,
     mode: str = "server",
 ) -> Result:
+    """Gate → candidates → detect → calibrate → Bonferroni → band.
+
+    ``text`` may be raw text or pre-tokenized ids (design §5/§8.1). Token
+    counting is per candidate tokenizer (configs may disagree on tokenizers);
+    a candidate whose tokenizer is unavailable, or whose flags carry
+    ``tokenizer_uncertain`` (hash mismatch, set by the caller), is never
+    scored — no silent fallback (design §7.1 step 1, POC plan phase 3)."""
     now = datetime.now(timezone.utc).isoformat()
     caveats: set[str] = {ALWAYS_CAVEAT}
     results: list[CandidateResult] = []
-    gate_ok = True
-    token_count = 0
     scored_max = 0
+    is_ids = not isinstance(text, str)
 
     if not candidates:
         return Result(_payload(now, 0, 0, fpr_target, Band.INSUFFICIENT, "no candidate configurations",
                                None, [], sorted(caveats), requested_by, _digest(text, deployment_salt), mode))
 
-    token_count = count_tokens(text, candidates[0].tokenizer_ref)
     k = len(candidates)
     if k > 1:
         caveats.add("multiple_candidates")
 
+    counts: dict[str, int | None] = {}   # tokenizer_ref -> count, None = tokenizer unavailable
+    token_count = len(text) if is_ids else 0
+    floor: float | None = None
     for c in candidates:
-        if token_count < c.min_tokens:
+        if "tokenizer_uncertain" in c.flags:          # hash mismatch detected by the caller
+            caveats.add("tokenizer_uncertain")
+            continue
+        if is_ids:
+            tc = len(text)
+        else:
+            if c.tokenizer_ref not in counts:
+                try:
+                    counts[c.tokenizer_ref] = count_tokens(text, c.tokenizer_ref)
+                except Exception:
+                    counts[c.tokenizer_ref] = None    # unavailable ≠ zero: never guess a count
+            tc = counts[c.tokenizer_ref]
+            if tc is None:
+                caveats.add("tokenizer_uncertain")
+                continue
+            token_count = max(token_count, tc)
+        if tc < c.min_tokens:
             caveats.add("short_text")
             continue
         det: Detection = c.adapter.detect(text, c.params, c.key, c.tokenizer_ref)
@@ -113,12 +137,16 @@ def verify(
             null_model_ref=f"{c.config_id}:null:{c.null_model.statistic_name}",
         ))
         caveats.update(c.flags)
+        if c.null_model.quality != "standard":
+            caveats.add("provisional_calibration")
+        floor = max(floor or 0.0, c.null_model.resolution_floor())
 
-    if not results:
-        gate_ok = False
-
+    gate_ok = bool(results)
     best = min(results, key=lambda r: r.p_value_adjusted) if results else None
-    band, reason = band_for(best.p_value_adjusted if best else None, fpr_target, gate_ok)
+    band, reason = band_for(best.p_value_adjusted if best else None, fpr_target, gate_ok,
+                            resolution_floor=floor)
+    if not gate_ok and "tokenizer_uncertain" in caveats and "short_text" not in caveats:
+        reason = "tokenizer unavailable or mismatched; result would be unreliable"
     if band is Band.NONE:
         best = None
     if band in (Band.WEAK, Band.MODERATE, Band.STRONG):

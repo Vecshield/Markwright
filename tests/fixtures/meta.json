@@ -1,0 +1,24 @@
+{
+ "seed": 0,
+ "vocab": 50000,
+ "temperature": 0.7,
+ "scheme_params": {
+  "ngram_len": 5,
+  "num_keys": 30,
+  "context_history_size": 1024,
+  "sampling_table_size": 65536,
+  "sampling_table_seed": 0,
+  "skip_first_ngram_calls": false,
+  "sampling": {
+   "temperature": 1.0,
+   "top_k": 40,
+   "top_p": 0.99
+  },
+  "detector": "mean",
+  "min_tokens": 50
+ },
+ "torch": "2.15.0",
+ "transformers": "5.21.0",
+ "python": "3.12.13",
+ "note": "marked sequences are watermark-bias-only (uniform base logits, no LM); unmarked sequences are gutenberg-en-v1 passages"
+}

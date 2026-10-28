@@ -26,16 +26,16 @@ model computable without hosting a model.
 Deadlock at baseline: `STATE["null_models"]` never written; `transition()`
 requires `calibration_ref` which nothing sets → no activation, verify always
 `insufficient_evidence`.
-- [ ] 1.1 `detect()` accepts `TokenIds | str` (design §5); tokenizer loaded only for str input
-- [ ] 1.2 Bundled starter null corpus `data/null/` (public-domain Gutenberg text, pre-tokenized gpt2 ids, lengths ~{100,200,400}) — small and honest about it
-- [ ] 1.3 `NullModel.resolution_floor()` + `quality: provisional|accepted`; `band_for` caps STRONG/MODERATE when `fpr_target < floor`; new `provisional_calibration` caveat (schema updated)
-- [ ] 1.4 `POST /v1/configs/{id}/calibrations` (synchronous), `POST /v1/calibrations/{run}:accept`; null models persisted (SQLite `calibrations` table) and loaded at startup; bootstrap bucket-fits precomputed at calibration time so `p_value_interval` is cheap at verify time
-- [ ] 1.5 CLI `markwright calibrate run|show|accept`
-- [ ] 1.6 Activation with provisional calibration allowed in `dev`/`onprem`, refused in `provider` profile
-- [ ] 1.7 Dev-profile default `fpr_target=1e-2` (floor of a ~300-doc corpus is ~3e-3); `MARKWRIGHT_FPR_TARGET` env respected
+- [x] 1.1 `detect()` accepts `TokenIds | str` (design §5); tokenizer loaded only for str input
+- [x] 1.2 Bundled starter null corpus `data/null/` (public-domain Gutenberg text, pre-tokenized gpt2 ids, lengths ~{100,200,400}) — small and honest about it
+- [x] 1.3 `NullModel.resolution_floor()` + `quality: provisional|accepted`; `band_for` caps STRONG/MODERATE when `fpr_target < floor`; new `provisional_calibration` caveat (schema updated)
+- [x] 1.4 `POST /v1/configs/{id}/calibrations` (synchronous), `POST /v1/calibrations/{run}:accept`; null models persisted (SQLite `calibrations` table) and loaded at startup; bootstrap bucket-fits precomputed at calibration time so `p_value_interval` is cheap at verify time
+- [x] 1.5 CLI `markwright calibrate run|show|accept`
+- [x] 1.6 Activation with provisional calibration allowed in `dev`/`onprem`, refused in `provider` profile
+- [x] 1.7 Dev-profile default `fpr_target=1e-2` (floor of a ~300-doc corpus is ~3e-3); `MARKWRIGHT_FPR_TARGET` env respected
 
 ### Phase 2 · Close the generation loop
-- [ ] 2.1 `GET /v1/models/{id}/versions/{v}/generation-profile` (returns scheme params + sealed-material hex, MVP form; X25519 session sealing = v1); audited as `key.handle_issue`
+- [x] 2.1 `GET /v1/models/{id}/versions/{v}/generation-profile` (returns scheme params + sealed-material hex, MVP form; X25519 session sealing = v1); audited as `key.handle_issue`
 - [ ] 2.2 Fix `hooks/hf_generate_example.py` to the real response shape; `--max-new-tokens`, `--seed`
 - [ ] 2.3 CLI `markwright generate test --config --prompt`
 

@@ -159,6 +159,7 @@
           "multiple_candidates",
           "historical_key",
           "spoofing_not_excluded",
+          "provisional_calibration",
           "result_is_probabilistic"
         ]
       }

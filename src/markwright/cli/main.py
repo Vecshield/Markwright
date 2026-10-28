@@ -15,8 +15,12 @@ from rich.panel import Panel
 app = typer.Typer(help="Markwright: manage LLM text watermarks. Results are probabilistic evidence, never a verdict.")
 model_app = typer.Typer(help="Register models and versions")
 config_app = typer.Typer(help="Scheme configurations")
+calibrate_app = typer.Typer(help="Fit and accept null models (required before activation)")
+generate_app = typer.Typer(help="Test generation through the inference hook")
 app.add_typer(model_app, name="model")
 app.add_typer(config_app, name="config")
+app.add_typer(calibrate_app, name="calibrate")
+app.add_typer(generate_app, name="generate")
 console = Console()
 
 CAVEAT_TEXT = {
@@ -27,7 +31,8 @@ CAVEAT_TEXT = {
     "multiple_candidates": "several configurations were scanned; p-value was corrected for that",
     "historical_key": "matched a rotated or revoked key",
     "spoofing_not_excluded": "this configuration's detector is public; the mark could have been forged",
-    "tokenizer_uncertain": "tokenizer mismatch; treat as unreliable",
+    "tokenizer_uncertain": "tokenizer unavailable or mismatched; this configuration was not scored",
+    "provisional_calibration": "calibrated on a small starter corpus; bands are capped at its resolution",
 }
 
 
@@ -70,6 +75,48 @@ def config_create(model: str = typer.Option(...), version: str = typer.Option(..
 def config_activate(config_id: str):
     r = _client().post(f"/v1/configs/{config_id}:activate")
     console.print(r.json() if r.status_code == 200 else _fail(r))
+
+
+@calibrate_app.command("run")
+def calibrate_run(config_id: str,
+                  null_corpus: list[str] = typer.Option(["gutenberg-en-v1"], "--null-corpus"),
+                  fpr: float = typer.Option(None, "--fpr")):
+    """Fit a null model for CONFIG_ID on bundled corpora (synchronous)."""
+    r = _client().post(f"/v1/configs/{config_id}/calibrations",
+                       json={"null_corpus_ids": null_corpus, "fpr_target": fpr})
+    if r.status_code != 201:
+        raise typer.Exit(_fail(r))
+    _print_calibration(r.json())
+    console.print("Accept it with: [bold]markwright calibrate accept "
+                  f"{r.json()['run_id']}[/bold]")
+
+
+@calibrate_app.command("show")
+def calibrate_show(run_id: str):
+    r = _client().get(f"/v1/calibrations/{run_id}")
+    _print_calibration(r.json()) if r.status_code == 200 else _fail(r)
+
+
+@calibrate_app.command("accept")
+def calibrate_accept(run_id: str):
+    """Accept a run: its null model becomes the config's calibration."""
+    r = _client().post(f"/v1/calibrations/{run_id}:accept")
+    if r.status_code != 200:
+        raise typer.Exit(_fail(r))
+    run = r.json()
+    _print_calibration(run)
+    console.print(f"Config [bold]{run['config_id']}[/bold] can now be activated.")
+
+
+def _print_calibration(run: dict) -> None:
+    lines = [f"[bold]calibration {run['run_id']}[/bold]  status={run['status']}  "
+             f"quality={run['quality']}",
+             f"  corpora    {', '.join(run['null_corpus_ids'])}  ({run['n_docs']} docs)",
+             f"  resolution floor  {run['resolution_floor']:.1e}  "
+             f"(fpr target {run['fpr_target']:.1e})",
+             f"  buckets    " + ", ".join(f"{b['length']}tok n={b['n']}" for b in run["buckets"])]
+    lines += [f"  note: {n}" for n in run["notes"]]
+    console.print(Panel("\n".join(lines), title="markwright calibrate"))
 
 
 @app.command()

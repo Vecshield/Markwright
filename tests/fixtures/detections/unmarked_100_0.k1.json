@@ -1,0 +1,17 @@
+{
+ "case": "unmarked_100_0",
+ "key_version": 1,
+ "statistic_name": "mean_g",
+ "statistic_value": 0.5002778172492981,
+ "scored_tokens": 120,
+ "analytic_p_value": 0.4876752106426571,
+ "min_detectable_tokens": null,
+ "extra": {
+  "z": 0.03089858137224071,
+  "analytic_p": 0.4876752106426571,
+  "key_version": 1
+ },
+ "notes": [
+  "eos_mask_skipped_token_ids_input"
+ ]
+}
