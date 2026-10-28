@@ -13,3 +13,4 @@ markwright-vault.json
 artifacts/
 *.bundle
 *.tgz
+grant/
