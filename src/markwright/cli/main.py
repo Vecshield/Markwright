@@ -17,10 +17,18 @@ model_app = typer.Typer(help="Register models and versions")
 config_app = typer.Typer(help="Scheme configurations")
 calibrate_app = typer.Typer(help="Fit and accept null models (required before activation)")
 generate_app = typer.Typer(help="Test generation through the inference hook")
+key_app = typer.Typer(help="Key lifecycle: metadata only; secrets stay in the backend")
+audit_app = typer.Typer(help="Tamper-evident audit log: tail, export, verify offline")
+detector_app = typer.Typer(help="Published detector artifacts (discloses key material!)")
+bundle_app = typer.Typer(help="Offline verification bundles")
 app.add_typer(model_app, name="model")
 app.add_typer(config_app, name="config")
 app.add_typer(calibrate_app, name="calibrate")
 app.add_typer(generate_app, name="generate")
+app.add_typer(key_app, name="key")
+app.add_typer(audit_app, name="audit")
+app.add_typer(detector_app, name="detector")
+app.add_typer(bundle_app, name="bundle")
 console = Console()
 
 CAVEAT_TEXT = {
@@ -148,6 +156,111 @@ def generate_test(config: str = typer.Option(..., "--config"),
                         subtitle="verify with: markwright verify --text '<this text>'"))
 
 
+# ---- keys ----------------------------------------------------------------------------------
+@key_app.command("create")
+def key_create(owner: str = typer.Option(None, "--owner", help="model id this key belongs to")):
+    r = _client().post("/v1/keys", json={"purpose": "generation", "owner_model_id": owner})
+    console.print(r.json() if r.status_code == 201 else _fail(r))
+
+
+@key_app.command("show")
+def key_show(key_id: str):
+    r = _client().get(f"/v1/keys/{key_id}")
+    console.print(r.json() if r.status_code == 200 else _fail(r))
+
+
+@key_app.command("list")
+def key_list(lineage: str = typer.Option(None, "--lineage")):
+    r = _client().get("/v1/keys", params={"lineage": lineage} if lineage else None)
+    for k in r.json():
+        console.print(f"[bold]{k['key_id']}[/bold] v{k['key_version']} {k['purpose']} "
+                      f"state={k['state']} lineage={k['lineage_id'][:8]}…")
+
+
+@key_app.command("rotate")
+def key_rotate(key_id: str):
+    """Old key verifies forever; configs move to a new version on the new key."""
+    r = _client().post(f"/v1/keys/{key_id}:rotate")
+    if r.status_code != 200:
+        raise typer.Exit(_fail(r))
+    out = r.json()
+    console.print(f"rotated: new key [bold]{out['new_key']['key_id']}[/bold] "
+                  f"v{out['new_key']['key_version']}")
+    for c in out["configs"]:
+        console.print(f"  config {c['old'][:8]}… deprecated -> new active config {c['new'][:8]}…")
+
+
+@key_app.command("revoke")
+def key_revoke(key_id: str, reason: str = typer.Option(..., "--reason")):
+    """Compromise response: marking stops now; verification continues, flagged."""
+    r = _client().post(f"/v1/keys/{key_id}:revoke", json={"reason": reason})
+    console.print(r.json() if r.status_code == 200 else _fail(r))
+
+
+# ---- audit ---------------------------------------------------------------------------------
+@audit_app.command("tail")
+def audit_tail(n: int = typer.Option(20, "-n")):
+    r = _client().get("/v1/audit")
+    if r.status_code != 200:
+        raise typer.Exit(_fail(r))
+    body = r.json()
+    for e in body["entries"][-n:]:
+        console.print(f"{e['seq']:>5} {e['ts'][:19]} {e['actor']['principal']:<8} "
+                      f"{e['action']:<20} {e['target']['kind']}:{e['target']['id'][:13]} {e['outcome']}")
+    console.print(f"head: {body['head']}")
+
+
+@audit_app.command("export")
+def audit_export(out: Path = typer.Option(Path("markwright-audit.tgz"), "--out")):
+    """Signed evidence bundle, verifiable offline with the deployment public key."""
+    r = _client().post("/v1/audit/export")
+    if r.status_code != 200:
+        raise typer.Exit(_fail(r))
+    out.write_bytes(r.content)
+    console.print(f"wrote {out} ({len(r.content)} bytes); verify with: "
+                  f"[bold]markwright audit verify {out}[/bold]")
+
+
+@audit_app.command("verify")
+def audit_verify(bundle: Path, pubkey: Path = typer.Option(None, "--pubkey",
+                 help="out-of-band hex public key file; defaults to the bundled one")):
+    """Offline: no server, no account — signature, head and hash chain."""
+    from markwright.audit import verify_bundle
+    ok, msg = verify_bundle(bundle.read_bytes(),
+                            pubkey.read_text().strip() if pubkey else None)
+    console.print(("[green]VALID[/green] " if ok else "[red]INVALID[/red] ") + msg)
+    raise typer.Exit(0 if ok else 1)
+
+
+# ---- detectors / bundles -------------------------------------------------------------------
+@detector_app.command("publish")
+def detector_publish(config_id: str, out: Path = typer.Option(None, "--out")):
+    """Publish the detector artifact. For SynthID this DISCLOSES the key list;
+    results under this config will carry spoofing_not_excluded forever."""
+    r = _client().post(f"/v1/configs/{config_id}/detector:publish")
+    if r.status_code != 200:
+        raise typer.Exit(_fail(r))
+    body = r.json()
+    console.print(f"published {body['detector_ref']} (sha256 {body['sha256'][:16]}…)")
+    console.print(f"[yellow]{body['note']}[/yellow]")
+    if out:
+        d = _client().get(f"/v1/detectors/{config_id}")
+        out.write_text(json.dumps(d.json(), indent=1))
+        console.print(f"wrote {out}")
+
+
+@bundle_app.command("export")
+def bundle_export(model: str = typer.Option(None, "--model"),
+                  out: Path = typer.Option(Path("markwright-verify.bundle"), "--out")):
+    """Export configs + null models + published detectors for offline verification."""
+    r = _client().get("/v1/bundle", params={"model": model} if model else None)
+    if r.status_code != 200:
+        raise typer.Exit(_fail(r))
+    out.write_bytes(r.content)
+    console.print(f"wrote {out} ({len(r.content)/1e6:.1f} MB); use with: "
+                  f"[bold]markwright verify --offline --bundle {out} --file <doc>[/bold]")
+
+
 def _print_calibration(run: dict) -> None:
     lines = [f"[bold]calibration {run['run_id']}[/bold]  status={run['status']}  "
              f"quality={run['quality']}",
@@ -162,17 +275,29 @@ def _print_calibration(run: dict) -> None:
 @app.command()
 def verify(text: str = typer.Option(None, "--text"), file: Path = typer.Option(None, "--file"),
            config: list[str] = typer.Option([], "--config"), fpr: float = typer.Option(None, "--fpr"),
+           offline: bool = typer.Option(False, "--offline", help="verify against a bundle, no server"),
+           bundle: Path = typer.Option(None, "--bundle", help="bundle from `markwright bundle export`"),
            as_json: bool = typer.Option(False, "--json")):
     """Verify a text against registered configurations. Prints evidence, not a verdict."""
     if file:
         text = file.read_text()
     if not text:
         text = sys.stdin.read()
-    body = {"text": text, "config_ids": config or None, "fpr_target": fpr}
-    r = _client().post("/v1/verify", json=body)
-    if r.status_code != 200:
-        raise typer.Exit(_fail(r))
-    res = r.json()
+    if offline:
+        if bundle is None:
+            console.print("[red]--offline needs --bundle <file>[/red] (export one with `markwright bundle export`)")
+            raise typer.Exit(1)
+        from markwright.verify.offline import verify_offline
+        result, loaded = verify_offline(bundle, text, fpr)
+        res = result.payload
+        for s in loaded.skipped:
+            console.print(f"[yellow]skipped[/yellow] {s['config_id']}: {s['reason']}")
+    else:
+        body = {"text": text, "config_ids": config or None, "fpr_target": fpr}
+        r = _client().post("/v1/verify", json=body)
+        if r.status_code != 200:
+            raise typer.Exit(_fail(r))
+        res = r.json()
     if as_json:
         print(json.dumps(res, indent=2))
         return

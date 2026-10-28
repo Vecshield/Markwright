@@ -6,13 +6,15 @@ token with a static role map. v1 replaces auth with OIDC and adds Postgres.
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from markwright import __version__, schemes
-from markwright.audit import AuditChain
+from markwright.artifacts import LocalArtifactStore
+from markwright.audit import AuditChain, export_bundle
 from markwright.calibration import available_corpora, run_calibration
 from markwright.calibration.run import tokenizer_hash as compute_tokenizer_hash
 from markwright.keys.backend import BackendRef, KeySpec
@@ -36,7 +38,8 @@ _DEFAULT_FPR = 1e-2 if PROFILE == "dev" else 1e-4
 STATE: dict[str, Any] = {
     "registry": RegistryStore(os.environ.get("MARKWRIGHT_DB", ":memory:")),
     "vault": None,
-    "audit": AuditChain(),
+    "audit": AuditChain(),        # replaced by the persistent signed chain in _init_audit()
+    "artifacts": LocalArtifactStore(os.environ.get("MARKWRIGHT_ARTIFACTS", "artifacts")),
     "policy": {"fpr_target": float(os.environ.get("MARKWRIGHT_FPR_TARGET", _DEFAULT_FPR)),
                "retention_days": 90, "custody_default": "single"},
     "null_models": {},            # config_id -> NullModel (accepted calibrations; v1: artifact store)
@@ -52,13 +55,12 @@ def _load_null_models() -> None:
         STATE["null_models"][config_id] = NullModel.from_dict(nm)
 
 
-_load_null_models()
-
 ROLE_VERBS = {
-    "admin": {"registry.read", "registry.write", "key.write", "verify", "audit.read", "policy.write"},
-    "operator": {"registry.read", "registry.write", "key.write", "verify"},
+    "admin": {"registry.read", "registry.write", "key.read", "key.write", "key.destroy",
+              "verify", "audit.read", "policy.write"},
+    "operator": {"registry.read", "registry.write", "key.read", "key.write", "verify"},
     "verifier": {"registry.read.public", "verify"},
-    "auditor": {"registry.read", "verify", "audit.read"},
+    "auditor": {"registry.read", "key.read", "verify", "audit.read"},
 }
 
 
@@ -67,6 +69,40 @@ def vault() -> LocalSealedVault:
         STATE["vault"] = LocalSealedVault(os.environ.get("MARKWRIGHT_VAULT", "markwright-vault.json"),
                                           os.environ.get("MARKWRIGHT_VAULT_PASSPHRASE", "dev-only-passphrase"))
     return STATE["vault"]
+
+
+def _ensure_signing_key():
+    """Deployment Ed25519 signing identity (design §6: generation secrets and
+    signing identities are separate key records with separate purposes). The
+    seed is derived inside the vault boundary; only the derivation is repeated,
+    never stored."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    reg: RegistryStore = STATE["registry"]
+    row = reg.db.execute("SELECT * FROM keys WHERE purpose='signing' AND state='active'").fetchone()
+    if row is None:
+        import uuid
+        lineage = str(uuid.uuid4())
+        ref = vault().create(KeySpec("signing", None, lineage))
+        row_d = reg.add_key(lineage, "signing", None, ref.backend, ref.ref, ref.version, lineage, "system")
+    else:
+        row_d = dict(row)
+    seed = vault().derive(BackendRef(row_d["backend"], row_d["backend_ref"], row_d["key_version"]),
+                          "markwright/deployment-signing/v1", 32)
+    return Ed25519PrivateKey.from_private_bytes(seed)
+
+
+def _init_audit() -> None:
+    """Persistent, signed audit chain (POC 4.3): entries live in the registry
+    DB and survive restarts; anchors are signed with the deployment identity."""
+    STATE["audit"] = AuditChain(
+        _ensure_signing_key(),
+        anchor_every=int(os.environ.get("MARKWRIGHT_ANCHOR_EVERY", "100")),
+        db=STATE["registry"].db)
+
+
+_load_null_models()
+_init_audit()
 
 
 def principal(authorization: str = Header(default="")) -> tuple[str, str]:
@@ -162,14 +198,14 @@ def create_config(model_id: str, version: str, c: ConfigIn, p=Depends(require("r
         lineage = str(uuid.uuid4())
         ref = vault().create(KeySpec("generation", model_id, lineage, STATE["policy"]["custody_default"]))
         key_id = lineage
-        reg.db.execute("INSERT INTO keys (key_id,purpose,owner_model_id,backend,backend_ref,key_version,lineage_id,state,valid_from,created_at,created_by) "
-                       "VALUES (?,?,?,?,?,?,?,?,datetime('now'),datetime('now'),?)",
-                       (key_id, "generation", model_id, ref.backend, ref.ref, ref.version, lineage, "active", p[0]))
-        reg.db.commit()
+        reg.add_key(key_id, "generation", model_id, ref.backend, ref.ref, ref.version, lineage, p[0])
         STATE["audit"].append({"principal": p[0], "role": p[1]}, "key.create", {"kind": "key", "id": key_id},
                               details={"backend": ref.backend, "custody": STATE["policy"]["custody_default"]})
     else:
         key_id = c.key
+        krow = reg.get_key(key_id)
+        if krow is None or krow["purpose"] != "generation":
+            raise HTTPException(422, "key must exist and have purpose=generation")
 
     cfg = reg.create_config(model_id, version, c.scheme_id, adapter.scheme_version, params, row["tokenizer_ref"], key_id, p[0], labels=c.labels)
     STATE["audit"].append({"principal": p[0], "role": p[1]}, "config.create", {"kind": "config", "id": cfg["config_id"]})
@@ -295,13 +331,17 @@ def generation_profile(model_id: str, version: str, config_id: str | None = None
     already final so hooks won't change."""
     reg: RegistryStore = STATE["registry"]
     cfgs = [reg.get_config(config_id)] if config_id else \
-        [c for c in reg.list_configs(model_id=model_id, statuses=("active",)) if c["model_version"] == version]
+        sorted((c for c in reg.list_configs(model_id=model_id, statuses=("active",))
+                if c["model_version"] == version),
+               key=lambda c: c["config_version"], reverse=True)   # newest wins after rotation
     cfg = next((c for c in cfgs if c and c["model_id"] == model_id and c["model_version"] == version), None)
     if cfg is None:
         raise HTTPException(404, "no matching config (pass ?config_id= for a draft config)")
     if cfg["status"] in ("deprecated", "retired"):
         raise HTTPException(409, f"config is {cfg['status']}; it must not mark new text")
-    key_row = reg.db.execute("SELECT * FROM keys WHERE key_id=?", (cfg["key_ref"],)).fetchone()
+    key_row = reg.get_key(cfg["key_ref"])
+    if key_row["state"] != "active":
+        raise HTTPException(409, f"key is {key_row['state']}; it must not mark new text")
     handle = _key_handle(cfg)
     STATE["audit"].append({"principal": p[0], "role": p[1]}, "key.handle_issue",
                           {"kind": "config", "id": cfg["config_id"]},
@@ -320,6 +360,168 @@ def generation_profile(model_id: str, version: str, config_id: str | None = None
         "sealed_material": handle.sealed_material.hex(),
         "status": cfg["status"],
     }
+
+
+# ---- key lifecycle (design §6 / §8.1; POC 4.1) -------------------------------------------
+class KeyIn(BaseModel):
+    purpose: str = Field(default="generation", pattern=r"^generation$",
+                         description="signing identities are system-managed, not created here")
+    owner_model_id: str | None = None
+
+
+class RevokeIn(BaseModel):
+    reason: str = Field(min_length=3)
+
+
+@app.post("/v1/keys", status_code=201)
+def create_key(body: KeyIn, p=Depends(require("key.write"))):
+    import uuid
+    reg: RegistryStore = STATE["registry"]
+    lineage = str(uuid.uuid4())
+    ref = vault().create(KeySpec("generation", body.owner_model_id, lineage,
+                                 STATE["policy"]["custody_default"]))
+    row = reg.add_key(lineage, "generation", body.owner_model_id, ref.backend, ref.ref,
+                      ref.version, lineage, p[0])
+    STATE["audit"].append({"principal": p[0], "role": p[1]}, "key.create",
+                          {"kind": "key", "id": lineage}, details={"backend": ref.backend})
+    return row
+
+
+@app.get("/v1/keys")
+def list_keys(lineage: str | None = None, _=Depends(require("key.read"))):
+    return STATE["registry"].list_keys(lineage)
+
+
+@app.get("/v1/keys/{key_id}")
+def get_key(key_id: str, _=Depends(require("key.read"))):
+    row = STATE["registry"].get_key(key_id)
+    if not row:
+        raise HTTPException(404)
+    return row
+
+
+@app.post("/v1/keys/{key_id}:rotate")
+def rotate_key(key_id: str, p=Depends(require("key.write"))):
+    """Design §6 data flow 3: new backend key version; old key verifies forever
+    (verify_until stays null); each active config is deprecated and superseded
+    by a new ACTIVE config version on the new key, inheriting the accepted
+    calibration (the null distribution under human text is key-independent)."""
+    import uuid
+    reg: RegistryStore = STATE["registry"]
+    old = reg.get_key(key_id)
+    if old is None:
+        raise HTTPException(404)
+    if old["purpose"] != "generation" or old["state"] != "active":
+        raise HTTPException(409, f"only active generation keys rotate (state={old['state']})")
+
+    ref = vault().rotate(BackendRef(old["backend"], old["backend_ref"], old["key_version"]))
+    now = datetime.now(UTC).isoformat()
+    reg.set_key_state(key_id, "verify-only", generate_until=now)
+    new_key_id = str(uuid.uuid4())
+    new_row = reg.add_key(new_key_id, "generation", old["owner_model_id"], ref.backend,
+                          ref.ref, ref.version, old["lineage_id"], p[0])
+    STATE["audit"].append({"principal": p[0], "role": p[1]}, "key.rotate",
+                          {"kind": "key", "id": key_id},
+                          details={"new_key_id": new_key_id, "new_version": ref.version,
+                                   "lineage": old["lineage_id"]})
+
+    rotated_configs = []
+    for cfg in reg.configs_using_key(key_id, statuses=("active",)):
+        reg.transition(cfg["config_id"], "deprecated")
+        new_cfg = reg.clone_config_for_rotation(cfg["config_id"], new_key_id, p[0])
+        if cfg["config_id"] in STATE["null_models"]:
+            STATE["null_models"][new_cfg["config_id"]] = STATE["null_models"][cfg["config_id"]]
+        STATE["audit"].append({"principal": p[0], "role": p[1]}, "config.create",
+                              {"kind": "config", "id": new_cfg["config_id"]},
+                              details={"supersedes": cfg["config_id"], "cause": "key.rotate"})
+        rotated_configs.append({"old": cfg["config_id"], "new": new_cfg["config_id"]})
+    return {"old_key": reg.get_key(key_id), "new_key": new_row, "configs": rotated_configs}
+
+
+@app.post("/v1/keys/{key_id}:revoke")
+def revoke_key(key_id: str, body: RevokeIn, p=Depends(require("key.destroy"))):
+    """Compromise response (design §6): generation stops at once; verification
+    continues forever, flagged historical_key — a leaked key means a positive
+    could be spoofed after the leak date, and the result page says so."""
+    reg: RegistryStore = STATE["registry"]
+    old = reg.get_key(key_id)
+    if old is None:
+        raise HTTPException(404)
+    if old["state"] in ("revoked", "destroyed"):
+        raise HTTPException(409, f"key already {old['state']}")
+    vault().revoke(BackendRef(old["backend"], old["backend_ref"], old["key_version"]), body.reason)
+    now = datetime.now(UTC).isoformat()
+    row = reg.set_key_state(key_id, "revoked", generate_until=now, revoked_at=now,
+                            revocation_reason=body.reason)
+    for cfg in reg.configs_using_key(key_id, statuses=("active",)):
+        reg.transition(cfg["config_id"], "deprecated")   # stops marking; stays scanned + flagged
+    STATE["audit"].append({"principal": p[0], "role": p[1]}, "key.revoke",
+                          {"kind": "key", "id": key_id}, details={"reason": body.reason})
+    return row
+
+
+@app.post("/v1/keys/{key_id}:destroy")
+def destroy_key(key_id: str, p=Depends(require("key.destroy"))):
+    """Destruction erases material and ends verification for that key — only
+    allowed once the record's verify_until has passed (design §6: default is
+    verify forever, so destruction is a deliberate, dated policy decision)."""
+    reg: RegistryStore = STATE["registry"]
+    old = reg.get_key(key_id)
+    if old is None:
+        raise HTTPException(404)
+    vu = old["verify_until"]
+    if vu is None or vu > datetime.now(UTC).isoformat():
+        raise HTTPException(409, "verify_until has not passed (null = verify forever); "
+                                 "set a verify_until policy before destroying material")
+    vault().destroy(BackendRef(old["backend"], old["backend_ref"], old["key_version"]))
+    row = reg.set_key_state(key_id, "destroyed")
+    STATE["audit"].append({"principal": p[0], "role": p[1]}, "key.destroy",
+                          {"kind": "key", "id": key_id})
+    return row
+
+
+# ---- published detectors (design §6.4; POC 4.5) -------------------------------------------
+@app.post("/v1/configs/{config_id}/detector:publish")
+def publish_detector(config_id: str, p=Depends(require("registry.write"))):
+    """Export the scheme's publishable detector to the artifact store. For
+    SynthID this DISCLOSES THE KEY LIST: the config is labelled
+    public-detector and every later result carries spoofing_not_excluded."""
+    import json as _json
+    reg: RegistryStore = STATE["registry"]
+    cfg = reg.get_config(config_id)
+    if not cfg:
+        raise HTTPException(404)
+    adapter = schemes.get(cfg["scheme_id"])
+    try:
+        det = adapter.export_detector(cfg["scheme_params"], _key_handle(cfg))
+    except RuntimeError as e:
+        raise HTTPException(503, str(e)) from e
+    if det is None:
+        raise HTTPException(409, f"scheme {cfg['scheme_id']} cannot separate detection from the key")
+    blob = _json.dumps({"kind": det.kind, "scheme_id": det.scheme_id, "sha256": det.sha256,
+                        "payload": det.payload}, sort_keys=True).encode()
+    uri = STATE["artifacts"].put("detectors",
+                                 f"{cfg['model_id']}-{cfg['model_version']}-c{cfg['config_version']}",
+                                 blob)
+    cfg = reg.set_detector(config_id, uri)
+    STATE["audit"].append({"principal": p[0], "role": p[1]}, "detector.publish",
+                          {"kind": "config", "id": config_id},
+                          details={"detector_ref": uri, "sha256": det.sha256,
+                                   "disclosure": "public-detector"})
+    return {"config_id": config_id, "detector_ref": uri, "sha256": det.sha256,
+            "labels": cfg["labels"],
+            "note": "the detector discloses key material for this scheme; results under this "
+                    "config now carry spoofing_not_excluded"}
+
+
+@app.get("/v1/detectors/{config_id}")
+def get_detector(config_id: str, _=Depends(require("verify"))):
+    """The published artifact is public by definition — any authenticated role."""
+    import json as _json
+    cfg = STATE["registry"].get_config(config_id)
+    if not cfg or not cfg["detector_ref"]:
+        raise HTTPException(404, "no published detector for this config")
+    return _json.loads(STATE["artifacts"].get(cfg["detector_ref"]))
 
 
 # ---- verification ----------------------------------------------------------------------
@@ -346,57 +548,202 @@ def _current_tokenizer_hash(tokenizer_ref: str) -> str | None:
 
 
 def _key_handle(cfg: dict) -> KeyHandle:
-    """Derive this config's scheme material through the key backend."""
-    key_row = STATE["registry"].db.execute(
-        "SELECT * FROM keys WHERE key_id=?", (cfg["key_ref"],)).fetchone()
+    """Derive this config's scheme material through the key backend. Only
+    generation keys may mark or detect — a signing key in a config is a wiring
+    bug, refused outright (design §6: the purposes never mix)."""
+    key_row = STATE["registry"].get_key(cfg["key_ref"])
     if key_row is None:
         raise HTTPException(409, f"config {cfg['config_id']} references unknown key {cfg['key_ref']}")
-    material = vault().derive(
-        BackendRef(key_row["backend"], key_row["backend_ref"], key_row["key_version"]),
-        f"markwright/root/{cfg['key_ref']}", 32)
+    if key_row["purpose"] != "generation":
+        raise HTTPException(409, f"key {cfg['key_ref']} has purpose={key_row['purpose']}; "
+                                 "only generation keys may mark or detect")
+    try:
+        material = vault().derive(
+            BackendRef(key_row["backend"], key_row["backend_ref"], key_row["key_version"]),
+            f"markwright/root/{cfg['key_ref']}", 32)
+    except PermissionError as e:   # destroyed key version
+        raise HTTPException(409, str(e)) from e
     return KeyHandle(cfg["key_ref"], key_row["key_version"], key_row["backend"],
                      key_row["backend_ref"], material)
+
+
+def _candidates(config_ids: list[str] | None, text_input: bool) -> list[Candidate]:
+    """Candidate assembly shared by single and batch verify. Uncalibrated
+    configs are never scanned; tokenizer-swap detection (POC 3.1) applies only
+    to text input — token-ids submissions bypass the tokenizer by construction."""
+    reg: RegistryStore = STATE["registry"]
+    cfgs = [reg.get_config(c) for c in config_ids] if config_ids \
+        else reg.list_configs(statuses=("active", "deprecated"))
+    cands: list[Candidate] = []
+    for cfg in cfgs:
+        if not cfg or cfg["config_id"] not in STATE["null_models"]:
+            continue
+        key_row = reg.get_key(cfg["key_ref"])
+        flags = ["historical_key"] if cfg["status"] == "deprecated" \
+            or (key_row and key_row["state"] != "active") else []
+        if cfg["labels"].get("disclosure") == "public-detector":
+            flags.append("spoofing_not_excluded")
+        if text_input:
+            recorded = cfg["verification_defaults"].get("tokenizer_hash")
+            if recorded is not None and _current_tokenizer_hash(cfg["tokenizer_ref"]) != recorded:
+                flags.append("tokenizer_uncertain")
+        cands.append(Candidate(cfg["config_id"], cfg["scheme_id"], schemes.get(cfg["scheme_id"]), cfg["scheme_params"],
+                               _key_handle(cfg), cfg["tokenizer_ref"], STATE["null_models"][cfg["config_id"]],
+                               cfg["verification_defaults"]["min_tokens"], cfg["verification_defaults"].get("min_detectable_tokens"),
+                               key_row["key_version"], flags))
+    return cands
+
+
+def _digest_salt() -> bytes:
+    return os.environ.get("MARKWRIGHT_DIGEST_SALT", "dev-salt").encode()
 
 
 @app.post("/v1/verify")
 def verify_text(v: VerifyIn, p=Depends(require("verify"))):
     if (v.text is None) == (v.token_ids is None):
         raise HTTPException(422, "provide exactly one of text or token_ids")
-    reg: RegistryStore = STATE["registry"]
     fpr = min(STATE["policy"]["fpr_target"], v.fpr_target or 1.0)
-    cfgs = [reg.get_config(c) for c in v.config_ids] if v.config_ids else reg.list_configs(statuses=("active", "deprecated"))
-    cands: list[Candidate] = []
-    for cfg in cfgs:
-        if not cfg or cfg["config_id"] not in STATE["null_models"]:
-            continue   # uncalibrated configs are never scanned
-        flags = ["historical_key"] if cfg["status"] == "deprecated" else []
-        if cfg["labels"].get("disclosure") == "public-detector":
-            flags.append("spoofing_not_excluded")
-        # Tokenizer-swap detection (POC 3.1): the hash recorded at calibration
-        # must match the current one. Only text input touches a tokenizer;
-        # token-ids submissions bypass it by construction.
-        if v.text is not None:
-            recorded = cfg["verification_defaults"].get("tokenizer_hash")
-            if recorded is not None and _current_tokenizer_hash(cfg["tokenizer_ref"]) != recorded:
-                flags.append("tokenizer_uncertain")
-        key_row = reg.db.execute("SELECT * FROM keys WHERE key_id=?", (cfg["key_ref"],)).fetchone()
-        cands.append(Candidate(cfg["config_id"], cfg["scheme_id"], schemes.get(cfg["scheme_id"]), cfg["scheme_params"],
-                               _key_handle(cfg), cfg["tokenizer_ref"], STATE["null_models"][cfg["config_id"]],
-                               cfg["verification_defaults"]["min_tokens"], cfg["verification_defaults"].get("min_detectable_tokens"),
-                               key_row["key_version"], flags))
-    salt = os.environ.get("MARKWRIGHT_DIGEST_SALT", "dev-salt").encode()
+    cands = _candidates(v.config_ids, text_input=v.text is not None)
     res = verify(v.text if v.text is not None else v.token_ids, cands, fpr,
-                 count_tokens=_count_tokens, deployment_salt=salt, requested_by=p[0])
-    reg.save_result(res.payload)
+                 count_tokens=_count_tokens, deployment_salt=_digest_salt(), requested_by=p[0])
+    STATE["registry"].save_result(res.payload)
     STATE["audit"].append({"principal": p[0], "role": p[1]}, "verify.single", {"kind": "result", "id": res["result_id"]},
                           details={"band": res["band"], "token_count": res["token_count"], "candidates": len(cands)})
     return res.payload
+
+
+class BatchVerifyIn(BaseModel):
+    texts: list[str] | None = Field(default=None, max_length=1000)
+    token_ids: list[list[int]] | None = Field(default=None, max_length=1000)
+    config_ids: list[str] | None = None
+    fpr_target: float | None = Field(default=None, gt=0, le=0.05)
+
+
+@app.post("/v1/verify/batch")
+def verify_batch(v: BatchVerifyIn, p=Depends(require("verify"))):
+    """Up to 1,000 inputs. The summary reports the EXPECTED number of chance
+    positives (n × fpr_target) next to the observed count, so a reviewer sees
+    '7 flagged; about 0.5 expected by chance' rather than a bare 7 (design §7.4).
+    POC runs synchronously; v1 moves batches to the jobs worker."""
+    import uuid
+    if (v.texts is None) == (v.token_ids is None):
+        raise HTTPException(422, "provide exactly one of texts or token_ids")
+    inputs: list = v.texts if v.texts is not None else v.token_ids
+    if not inputs:
+        raise HTTPException(422, "empty batch")
+    batch_id = str(uuid.uuid4())
+    fpr = min(STATE["policy"]["fpr_target"], v.fpr_target or 1.0)
+    cands = _candidates(v.config_ids, text_input=v.texts is not None)
+    results = []
+    for item in inputs:
+        res = verify(item, cands, fpr, count_tokens=_count_tokens,
+                     deployment_salt=_digest_salt(), requested_by=p[0])
+        res.payload["request_id"] = batch_id
+        STATE["registry"].save_result(res.payload)
+        results.append(res.payload)
+    bands: dict[str, int] = {}
+    for r in results:
+        bands[r["band"]] = bands.get(r["band"], 0) + 1
+    positives = sum(bands.get(b, 0) for b in ("strong_evidence", "moderate_evidence"))
+    summary = {
+        "n": len(results), "bands": bands, "fpr_target": fpr,
+        "positives_at_or_above_moderate": positives,
+        "expected_false_positives": len(results) * fpr,
+        "note": f"{positives} flagged; about {len(results) * fpr:.2g} expected by chance "
+                f"at fpr_target={fpr:.1e} if nothing were marked",
+    }
+    STATE["audit"].append({"principal": p[0], "role": p[1]}, "verify.batch",
+                          {"kind": "batch", "id": batch_id},
+                          details={"n": len(results), "bands": bands})
+    return {"batch_id": batch_id, "summary": summary, "results": results}
+
+
+@app.get("/v1/verify/results")
+def list_results(since: str | None = None, band: str | None = None, model: str | None = None,
+                 p=Depends(require("verify"))):
+    """Result metadata, never text. Verifiers and operators see their own
+    requests; auditors and admins see the deployment's (design §8.1)."""
+    own = p[0] if p[1] in ("verifier", "operator") else None
+    return STATE["registry"].list_results(since=since, band=band, model_id=model, requested_by=own)
+
+
+# ---- offline bundle export (design §7.5; POC phase 5) -------------------------------------
+@app.get("/v1/bundle")
+def bundle_export(model: str | None = None, p=Depends(require("registry.write"))):
+    """Everything an offline verifier needs, nothing secret: config metadata,
+    null models, published detectors. Configs without a published detector are
+    included with their skip reason — the offline CLI reports them, never
+    silently drops them."""
+    import json as _json
+
+    from fastapi.responses import Response
+
+    from markwright.verify.offline import build_bundle
+    reg: RegistryStore = STATE["registry"]
+    entries = []
+    for cfg in reg.list_configs(model_id=model, statuses=("active", "deprecated")):
+        null_model = None
+        if cfg["calibration_ref"]:
+            run = reg.get_calibration(cfg["calibration_ref"])
+            if run and run["status"] == "accepted":
+                null_model = run["report"]["null_model"]
+        detector = None
+        if cfg["detector_ref"]:
+            detector = _json.loads(STATE["artifacts"].get(cfg["detector_ref"]))
+        public = {k: cfg[k] for k in ("config_id", "model_id", "model_version", "config_version",
+                                      "scheme_id", "scheme_version", "status", "tokenizer_ref",
+                                      "verification_defaults", "labels")}
+        entries.append({"config": public, "null_model": null_model, "detector": detector})
+    if not entries:
+        raise HTTPException(404, "no active or deprecated configs to export")
+    data = build_bundle(entries, STATE["policy"]["fpr_target"])
+    STATE["audit"].append({"principal": p[0], "role": p[1]}, "export.evidence",
+                          {"kind": "bundle", "id": model or "all"},
+                          details={"configs": len(entries)})
+    return Response(content=data, media_type="application/gzip",
+                    headers={"Content-Disposition": "attachment; filename=markwright-verify.bundle"})
 
 
 # ---- audit / policy / health -----------------------------------------------------------
 @app.get("/v1/audit")
 def audit(_=Depends(require("audit.read"))):
     return {"head": STATE["audit"].head, "entries": STATE["audit"].entries}
+
+
+@app.post("/v1/audit/export")
+def audit_export(p=Depends(require("audit.read"))):
+    from fastapi.responses import Response
+    STATE["audit"].append({"principal": p[0], "role": p[1]}, "export.evidence",
+                          {"kind": "chain", "id": STATE["audit"].head})
+    data = export_bundle(STATE["audit"], __version__)
+    return Response(content=data, media_type="application/gzip",
+                    headers={"Content-Disposition": "attachment; filename=markwright-audit.tgz"})
+
+
+@app.get("/v1/audit/public-key")
+def audit_public_key(_=Depends(require("registry.read"))):
+    pub = STATE["audit"].public_key_bytes
+    if pub is None:
+        raise HTTPException(503, "no deployment signing key")
+    return {"algorithm": "ed25519", "public_key_hex": pub.hex()}
+
+
+class PolicyIn(BaseModel):
+    fpr_target: float | None = Field(default=None, gt=0, le=0.05)
+    retention_days: int | None = Field(default=None, ge=0)
+
+
+@app.put("/v1/policy")
+def put_policy(body: PolicyIn, p=Depends(require("policy.write"))):
+    before = dict(STATE["policy"])
+    if body.fpr_target is not None:
+        STATE["policy"]["fpr_target"] = body.fpr_target
+    if body.retention_days is not None:
+        STATE["policy"]["retention_days"] = body.retention_days
+    STATE["audit"].append({"principal": p[0], "role": p[1]}, "policy.change",
+                          {"kind": "policy", "id": "deployment"},
+                          details={"before": before, "after": dict(STATE["policy"])})
+    return STATE["policy"]
 
 
 @app.get("/v1/policy")
@@ -407,3 +754,33 @@ def get_policy(_=Depends(require("registry.read"))):
 @app.get("/healthz")
 def healthz():
     return {"ok": True, "version": __version__}
+
+
+@app.get("/readyz")
+def readyz():
+    """Liveness is healthz; readiness proves the stores actually answer."""
+    try:
+        STATE["registry"].db.execute("SELECT 1").fetchone()
+        n_schemes = len(schemes.available())
+    except Exception as e:
+        raise HTTPException(503, f"not ready: {e}") from e
+    return {"ready": True, "schemes": n_schemes, "profile": PROFILE,
+            "calibrated_configs": len(STATE["null_models"])}
+
+
+@app.get("/metrics")
+def metrics():
+    """Minimal Prometheus exposition (full OTel is v1, design §9)."""
+    from fastapi.responses import PlainTextResponse
+    reg: RegistryStore = STATE["registry"]
+    lines = [
+        "# TYPE markwright_results_total counter",
+    ]
+    for r in reg.db.execute("SELECT band, COUNT(*) n FROM results GROUP BY band"):
+        lines.append(f'markwright_results_total{{band="{r["band"]}"}} {r["n"]}')
+    lines.append("# TYPE markwright_configs gauge")
+    for r in reg.db.execute("SELECT status, COUNT(*) n FROM configs GROUP BY status"):
+        lines.append(f'markwright_configs{{status="{r["status"]}"}} {r["n"]}')
+    lines.append("# TYPE markwright_audit_entries gauge")
+    lines.append(f"markwright_audit_entries {len(STATE['audit'].entries)}")
+    return PlainTextResponse("\n".join(lines) + "\n")

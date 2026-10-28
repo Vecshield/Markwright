@@ -10,3 +10,6 @@ dist/
 markwright-vault.json
 *.sqlite
 .coverage
+artifacts/
+*.bundle
+*.tgz

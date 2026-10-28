@@ -32,6 +32,17 @@ CREATE TABLE IF NOT EXISTS results (
 CREATE TABLE IF NOT EXISTS calibrations (
   run_id TEXT PRIMARY KEY, config_id TEXT, created_at TEXT, created_by TEXT,
   status TEXT, quality TEXT, report TEXT);
+-- Config immutability as a DB constraint, not a convention (design §4, POC 4.7):
+-- identity-defining columns may not change once a config leaves draft. Lifecycle
+-- columns (status, dates), calibration_ref/verification_defaults, detector_ref
+-- and labels stay mutable; rotation creates NEW rows instead of updating.
+CREATE TRIGGER IF NOT EXISTS configs_immutable
+BEFORE UPDATE OF model_id, model_version, config_version, supersedes,
+                 scheme_id, scheme_version, scheme_params, tokenizer_ref, key_ref
+ON configs WHEN old.status != 'draft'
+BEGIN
+  SELECT RAISE(ABORT, 'config is immutable once active (create a new config version instead)');
+END;
 """
 
 TRANSITIONS = {"draft": {"active", "retired"}, "active": {"deprecated"}, "deprecated": {"retired"}, "retired": set()}
@@ -130,6 +141,80 @@ class RegistryStore:
                         (calibration_ref, json.dumps(vd), config_id))
         self.db.commit()
 
+    # keys (metadata only; secret bytes live in the backend) -------------------------------
+    def add_key(self, key_id: str, purpose: str, owner_model_id: str | None, backend: str,
+                backend_ref: str, key_version: int, lineage_id: str, by: str,
+                state: str = "active") -> dict:
+        self.db.execute(
+            "INSERT INTO keys (key_id,purpose,owner_model_id,backend,backend_ref,key_version,"
+            "lineage_id,state,valid_from,created_at,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (key_id, purpose, owner_model_id, backend, backend_ref, key_version,
+             lineage_id, state, _now(), _now(), by))
+        self.db.commit()
+        return self.get_key(key_id)
+
+    def get_key(self, key_id: str) -> dict | None:
+        r = self.db.execute("SELECT * FROM keys WHERE key_id=?", (key_id,)).fetchone()
+        return dict(r) if r else None
+
+    def list_keys(self, lineage_id: str | None = None) -> list[dict]:
+        q, args = "SELECT * FROM keys", []
+        if lineage_id:
+            q += " WHERE lineage_id=?"
+            args.append(lineage_id)
+        return [dict(r) for r in self.db.execute(q + " ORDER BY created_at, key_version", args)]
+
+    def set_key_state(self, key_id: str, state: str, *, generate_until: str | None = None,
+                      revoked_at: str | None = None, revocation_reason: str | None = None) -> dict:
+        self.db.execute(
+            "UPDATE keys SET state=?, generate_until=COALESCE(?, generate_until), "
+            "revoked_at=COALESCE(?, revoked_at), revocation_reason=COALESCE(?, revocation_reason) "
+            "WHERE key_id=?",
+            (state, generate_until, revoked_at, revocation_reason, key_id))
+        self.db.commit()
+        return self.get_key(key_id)
+
+    def configs_using_key(self, key_id: str, statuses: tuple[str, ...] = ("active",)) -> list[dict]:
+        q = f"SELECT * FROM configs WHERE key_ref=? AND status IN ({','.join('?' * len(statuses))})"
+        return [self._cfg(r) for r in self.db.execute(q, (key_id, *statuses))]
+
+    def clone_config_for_rotation(self, old_config_id: str, new_key_id: str, by: str) -> dict:
+        """Rotation (design §6 data flow 3): the old config keeps verifying
+        forever; the NEW config version points at the new key and inherits the
+        accepted calibration (the null distribution of the statistic under
+        human text does not depend on which key is scanned). Inserted directly
+        as active — the immutability trigger only guards UPDATEs."""
+        old = self.get_config(old_config_id)
+        if old is None:
+            raise KeyError(old_config_id)
+        prev = self.db.execute(
+            "SELECT MAX(config_version) v FROM configs WHERE model_id=? AND model_version=?",
+            (old["model_id"], old["model_version"])).fetchone()
+        cfg = dict(old)
+        cfg.update({
+            "config_id": str(uuid.uuid4()), "config_version": (prev["v"] or 0) + 1,
+            "supersedes": old_config_id, "key_ref": new_key_id, "detector_ref": None,
+            "status": "active", "generate_from": _now(), "generate_until": None,
+            "created_at": _now(), "created_by": by,
+        })
+        self.db.execute(
+            "INSERT INTO configs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (cfg["config_id"], cfg["model_id"], cfg["model_version"], cfg["config_version"],
+             cfg["supersedes"], cfg["scheme_id"], cfg["scheme_version"],
+             json.dumps(cfg["scheme_params"]), cfg["tokenizer_ref"], cfg["key_ref"], None,
+             cfg["calibration_ref"], json.dumps(cfg["verification_defaults"]), "active",
+             cfg["generate_from"], None, None, json.dumps(cfg["labels"]), cfg["created_at"], by))
+        self.db.commit()
+        return self.get_config(cfg["config_id"])
+
+    def set_detector(self, config_id: str, detector_ref: str) -> dict:
+        cfg = self.get_config(config_id)
+        labels = {**cfg["labels"], "disclosure": "public-detector"}
+        self.db.execute("UPDATE configs SET detector_ref=?, labels=? WHERE config_id=?",
+                        (detector_ref, json.dumps(labels), config_id))
+        self.db.commit()
+        return self.get_config(config_id)
+
     # calibrations -----------------------------------------------------------------------
     def save_calibration(self, config_id: str, report: dict, by: str) -> dict:
         self.db.execute(
@@ -187,6 +272,23 @@ class RegistryStore:
         for k in ("scheme_params", "verification_defaults", "labels"):
             d[k] = json.loads(d[k]) if d[k] else {}
         return d
+
+    def list_results(self, since: str | None = None, band: str | None = None,
+                     model_id: str | None = None, requested_by: str | None = None,
+                     limit: int = 500) -> list[dict]:
+        """Result METADATA only — payloads hold statistics and digests, never text."""
+        q = ("SELECT r.result_id, r.requested_at, r.requested_by, r.text_digest, r.token_count, "
+             "r.fpr_target, r.band, r.best_match, c.model_id, c.model_version "
+             "FROM results r LEFT JOIN configs c ON c.config_id = r.best_match WHERE 1=1")
+        args: list = []
+        for cond, val in ((" AND r.requested_at >= ?", since), (" AND r.band = ?", band),
+                          (" AND c.model_id = ?", model_id), (" AND r.requested_by = ?", requested_by)):
+            if val is not None:
+                q += cond
+                args.append(val)
+        q += " ORDER BY r.requested_at DESC LIMIT ?"
+        args.append(min(limit, 1000))
+        return [dict(r) for r in self.db.execute(q, args)]
 
     # results (metadata only) -----------------------------------------------------------
     def save_result(self, payload: dict[str, Any]) -> None:

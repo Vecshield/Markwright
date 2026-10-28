@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from markwright.schemes.base import Capabilities, Detection, KeyHandle, TokenIds
+from markwright.schemes.base import Capabilities, Detection, Detector, KeyHandle, TokenIds
 from markwright.stats.null_model import NullModel
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -98,7 +98,16 @@ class ParityAdapter:
         raise NotImplementedError
 
     def export_detector(self, params, key):
-        return None
+        """Parity detection needs no secret at all, so the detector is trivially
+        publishable — which is exactly what the detector-publish and offline-
+        bundle tests need to run without torch."""
+        import hashlib
+        import json as _json
+
+        payload = {"scheme_id": self.scheme_id, "params": params,
+                   "key_version": getattr(key, "key_version", 1)}
+        digest = hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest()
+        return Detector(kind="artifact", scheme_id=self.scheme_id, payload=payload, sha256=digest)
 
 
 def parity_marked_ids(n: int, even_fraction: float = 0.8, seed: int = 0) -> list[int]:
@@ -123,7 +132,7 @@ def api(tmp_path, monkeypatch):
 
     import markwright.schemes as schemes_mod
     from markwright.api import app as a
-    from markwright.audit import AuditChain
+    from markwright.artifacts import LocalArtifactStore
     from markwright.keys.local_sealed import LocalSealedVault
     from markwright.registry import RegistryStore
 
@@ -143,10 +152,11 @@ def api(tmp_path, monkeypatch):
 
     a.STATE["registry"] = RegistryStore(tmp_path / "registry.sqlite")
     a.STATE["vault"] = LocalSealedVault(tmp_path / "vault.json", "test-passphrase")
-    a.STATE["audit"] = AuditChain()
+    a.STATE["artifacts"] = LocalArtifactStore(tmp_path / "artifacts")
     a.STATE["null_models"] = {}
     a.STATE["tokenizer_hashes"] = {}
     a.STATE["policy"] = {"fpr_target": 1e-2, "retention_days": 90, "custody_default": "single"}
+    a._init_audit()    # persistent signed chain bound to the fresh registry db
     return TestClient(a.app), a
 
 

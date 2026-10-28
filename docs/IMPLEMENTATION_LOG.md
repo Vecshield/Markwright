@@ -164,3 +164,58 @@ stays null, reported in notes); X25519 sealing; async calibration jobs.
 Milestone A complete. Next session starts at Milestone B phase 4.1 (key
 lifecycle routes — vault rotate/revoke/destroy exist and are uncalled) or
 phase 6 (dashboard) depending on priority. docs/poc-plan.md is current.
+
+## 2026-10-28 · Session 2 (Claude Code) — Milestone B
+
+### Phase 4 + 5 — key lifecycle, signed audit, detectors, batch, offline (commit: phase-4-5)
+- **4.3 first (foundational)**: `AuditChain` gains sqlite persistence (table
+  `audit_log` in the registry DB; reloads on construction → restarts keep the
+  chain). Deployment Ed25519 identity: a `purpose=signing` key record whose
+  seed is DERIVED inside the vault boundary (`markwright/deployment-signing/v1`),
+  never stored. `export_bundle`/`verify_bundle`: tar.gz of entries + manifest +
+  Ed25519 signature + pubkey, verifiable fully offline; wrong-deployment keys
+  and tampered entries are detected (tests prove both).
+  Routes: `POST /v1/audit/export`, `GET /v1/audit/public-key`.
+  CLI: `markwright audit tail|export|verify [--pubkey]`.
+- **4.1/4.2 key lifecycle**: `POST /v1/keys`, `GET /v1/keys[/{id}]?lineage=`,
+  `:rotate` (old key → verify-only + generate_until, verifies forever; each
+  active config is deprecated and superseded by a NEW active config version on
+  the new key, inheriting the accepted calibration — the null distribution
+  under human text is key-independent; decision logged here), `:revoke`
+  (admin; marking stops, verification continues flagged historical_key, reason
+  recorded), `:destroy` (admin; refused until verify_until passes — null means
+  verify forever). Purpose separation enforced: `_key_handle` refuses
+  non-generation keys; configs cannot reference the signing key; the
+  generation-profile refuses non-active keys and picks the newest active
+  config after rotation. CLI `key create|show|list|rotate|revoke`.
+- **4.4** `markwright/artifacts.py`: `ArtifactStore` Protocol + atomic,
+  content-hash-checked `LocalArtifactStore` (`local://` URIs; S3 is v1).
+- **4.5** `POST /v1/configs/{id}/detector:publish` → artifact store, sets
+  `labels.disclosure=public-detector` (→ spoofing_not_excluded on every later
+  result), 409 for schemes that cannot separate detection from the key;
+  `GET /v1/detectors/{id}` is readable by any authenticated role (it is public
+  by definition). CLI `detector publish [--out]`.
+- **4.6** `POST /v1/verify/batch` (≤1000, synchronous for POC — async worker is
+  v1; summary reports observed positives NEXT TO n×fpr expected-by-chance per
+  design §7.4), `GET /v1/verify/results` (role-scoped: verifier/operator own,
+  auditor/admin all; metadata only), `PUT /v1/policy` (admin, audited
+  policy.change), `GET /readyz`, `GET /metrics` (minimal Prometheus).
+- **4.7** Config immutability is now a SQLite trigger: UPDATE of any
+  identity-defining column on a non-draft config aborts. Rotation INSERTs new
+  rows, so it composes. Lifecycle/calibration/detector/label columns stay
+  mutable by design.
+- **Phase 5 offline**: `GET /v1/bundle?model=` exports configs + null models +
+  published detectors (configs without a detector ship as `skipped` with the
+  reason — never silently dropped). `markwright.verify.offline`:
+  `load_bundle`/`verify_offline` run the standard pipeline with
+  `mode="offline"`, tokenizer from local HF cache only (`local_files_only`),
+  FPR may only tighten. CLI: `bundle export`, `verify --offline --bundle`.
+- RBAC verbs added: key.read (admin/operator/auditor), key.destroy (admin).
+- Tests: `tests/test_lifecycle_and_evidence.py` — 15 new tier-1 tests
+  (rotation/revocation/destroy semantics, purpose separation, audit restart +
+  export tamper detection, detector disclosure, batch expected-FP, result
+  scoping, policy RBAC, immutability trigger, offline bundle incl. skip list
+  and FPR tightening). ParityAdapter gained a trivially-publishable detector
+  so all of this runs without torch. Suite: 80 passed.
+- Deliberately deferred: chain-head column on results (4.8 note), threshold
+  custody / approvals (v2), async batch (v1), X25519 sealing (v1).

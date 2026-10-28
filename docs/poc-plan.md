@@ -57,17 +57,17 @@ tokens (insufficient) → audit chain verifies. This is design §11's MVP gate.
 ## Milestone B — infra parity (NOT STARTED)
 
 ### Phase 4 · API + service surface
-- [ ] 4.1 Key lifecycle routes: `POST /v1/keys`, `:rotate`, `:revoke`, `:destroy`, `GET /v1/keys?lineage=`; enforce `generate_until`/`verify_until`; `historical_key` flag on rotated keys
-- [ ] 4.2 CLI `key create|show|rotate|revoke`
-- [ ] 4.3 Persist + sign the audit chain (SQLite-backed; Ed25519 deployment identity created at first boot into the vault; `GET /v1/audit/export` signed tar; CLI `audit tail|export|verify`)
-- [ ] 4.4 `ArtifactStore` protocol + local-fs impl (null models, calibration reports, detectors)
-- [ ] 4.5 `POST /v1/configs/{id}/detector:publish`, `GET /v1/detectors/{id}`, CLI `detector publish`; sets `labels.disclosure=public-detector` → `spoofing_not_excluded`
-- [ ] 4.6 `PUT /v1/policy`, `/readyz`, `/metrics`, `POST /v1/verify/batch` (+ expected-FP count), `GET /v1/verify/results`
-- [ ] 4.7 Config immutability as a DB-level guard, not a convention
-- [ ] 4.8 Audit-chain restart test; results persisted with chain head
+- [x] 4.1 Key lifecycle routes: `POST /v1/keys`, `:rotate`, `:revoke`, `:destroy`, `GET /v1/keys?lineage=`; enforce `generate_until`/`verify_until`; `historical_key` flag on rotated keys
+- [x] 4.2 CLI `key create|show|rotate|revoke`
+- [x] 4.3 Persist + sign the audit chain (SQLite-backed; Ed25519 deployment identity created at first boot into the vault; `GET /v1/audit/export` signed tar; CLI `audit tail|export|verify`)
+- [x] 4.4 `ArtifactStore` protocol + local-fs impl (null models, calibration reports, detectors)
+- [x] 4.5 `POST /v1/configs/{id}/detector:publish`, `GET /v1/detectors/{id}`, CLI `detector publish`; sets `labels.disclosure=public-detector` → `spoofing_not_excluded`
+- [x] 4.6 `PUT /v1/policy`, `/readyz`, `/metrics`, `POST /v1/verify/batch` (+ expected-FP count), `GET /v1/verify/results`
+- [x] 4.7 Config immutability as a DB-level guard, not a convention
+- [x] 4.8 Audit-chain restart test (chain-head column on results deferred to v1)
 
 ### Phase 5 · Offline verification
-- [ ] `markwright bundle export` + `markwright verify --offline --bundle` (design §7.5)
+- [x] `markwright bundle export` + `markwright verify --offline --bundle` (design §7.5)
 
 ### Phase 6 · Dashboard (two screens)
 - [ ] Vite+React+TS, generated OpenAPI client; Verify screen rendered from `schemas/verification-result.json` (non-collapsible caveats/FPR, one hue, no green/red); Registry table. Other screens = v1.
