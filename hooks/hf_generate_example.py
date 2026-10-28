@@ -16,23 +16,12 @@ from ``adapter.apply(config)`` into vLLM's ``logits_processors`` list.
 from __future__ import annotations
 
 import argparse
-import os
 
-import httpx
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from markwright.inference import fetch_generation_profile, key_handle_from_profile
 from markwright.schemes import get
-from markwright.schemes.base import KeyHandle
-
-
-def fetch_profile(model_id: str, model_version: str, config_id: str | None = None) -> dict:
-    api = httpx.Client(base_url=os.environ.get("MARKWRIGHT_URL", "http://localhost:8000"),
-                       headers={"Authorization": f"Bearer {os.environ.get('MARKWRIGHT_TOKEN', 'operator-token')}"})
-    r = api.get(f"/v1/models/{model_id}/versions/{model_version}/generation-profile",
-                params={"config_id": config_id} if config_id else None)
-    r.raise_for_status()
-    return r.json()
 
 
 def main() -> None:
@@ -46,9 +35,8 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=None)
     args = ap.parse_args()
 
-    prof = fetch_profile(args.model_id, args.model_version, args.config)
-    key = KeyHandle(prof["key_ref"], prof["key_version"], prof["backend"], prof["backend_ref"],
-                    bytes.fromhex(prof["sealed_material"]))
+    prof = fetch_generation_profile(args.model_id, args.model_version, args.config)
+    key = key_handle_from_profile(prof)
     adapter = get(prof["scheme_id"])
     wm_cfg = adapter.hf_watermarking_config(prof["scheme_params"], key)
 

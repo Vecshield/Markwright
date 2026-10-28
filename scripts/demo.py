@@ -98,6 +98,31 @@ def main() -> None:
                    "config.activate", "key.handle_issue", "verify.single"):
         assert any(e["action"] == action for e in audit["entries"]), f"missing audit action {action}"
 
+    # -- optional step 9: second scheme from a separate package (design §12) ------------
+    try:
+        import importlib.util
+        if importlib.util.find_spec("markwright_scheme_kgw") is None:
+            raise ImportError
+        step("9/9 [bonus] second scheme (kgw) from its own package — no core change")
+        cfg2 = c.post("/v1/models/demo-llm/versions/1.0/configs",
+                      json={"scheme_id": "kgw", "scheme_params": {"vocab_size": 50257}},
+                      headers=OP).json()
+        run2 = c.post(f"/v1/configs/{cfg2['config_id']}/calibrations",
+                      json={"null_corpus_ids": ["gutenberg-en-v1"]}, headers=OP).json()
+        c.post(f"/v1/calibrations/{run2['run_id']}:accept", headers=OP)
+        c.post(f"/v1/configs/{cfg2['config_id']}:activate", headers=OP)
+        res_multi = c.post("/v1/verify", json={"token_ids": marked}, headers=VER).json()
+        schemes_scanned = {x["scheme_id"] for x in res_multi["candidates"]}
+        best2 = next(x for x in res_multi["candidates"] if x["config_id"] == res_multi["best_match"])
+        print(f"    scanned schemes: {sorted(schemes_scanned)}  (Bonferroni over "
+              f"{len(res_multi['candidates'])} candidates)")
+        print(f"    synthid-marked text matches: {best2['scheme_id']}  band={res_multi['band']}")
+        assert schemes_scanned == {"synthid-text", "kgw"}
+        assert best2["scheme_id"] == "synthid-text"
+        assert "multiple_candidates" in res_multi["caveats"]
+    except ImportError:
+        print("\n(step 9 skipped: markwright-scheme-kgw not installed)")
+
     print("\nEXIT GATE PASSED: register → key → mark → calibrate → activate → verify, honestly labelled.")
 
 

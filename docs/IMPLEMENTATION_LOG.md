@@ -251,3 +251,30 @@ custody, robustness sweeps, X25519 sealing, async jobs, SDKs, Helm templates,
 dashboard screens 3–7). Next session: pick from design §11 v1 list; suggested
 order: vLLM hook plugin → KGW adapter as the architecture test (design §12
 "adding a scheme") → OIDC.
+
+### Phase 8 (Milestone C start) — vLLM plugin + KGW package (commit: phase-8)
+- `src/markwright/inference.py`: the inference-hook helpers moved into the
+  package (hooks stay thin scripts). `VLLMLogitsProcessor` wraps any adapter's
+  HF-style processor into vLLM's per-request logits-processor convention;
+  supports both `(token_ids, logits)` and `(prompt_ids, generated_ids, logits)`
+  arities; empty context passes logits through. `hooks/vllm_example.py` shows
+  SamplingParams wiring. VERIFICATION HONESTY: tested against a simulated vLLM
+  sampling loop (exact calling convention; marked output detects at mean_g>0.72,
+  and the wrapper's output is torch.equal to the HF batch path) — but vLLM
+  itself does not install on macOS, so live-under-vLLM remains UNVERIFIED until
+  someone runs hooks/vllm_example.py on a Linux/CUDA host.
+- `packages/markwright-scheme-kgw/`: the design-§12 architecture test, done
+  properly as a SEPARATE pip package with its own pyproject and
+  `markwright.schemes` entry point. Core diff for scheme support: zero lines.
+  Prototyped against transformers 5.21 first (WatermarkDetector needs a
+  PretrainedConfig with explicit bos_token_id — None breaks torch.any; we
+  default bos to vocab_size-1 = gpt2's eos). KGW facts encoded: not
+  distortion-free; no publishable detector (export_detector→None, publish
+  route → 409, Detector-input detect() raises); z statistic re-calibrated
+  through the null model like any other; HF's `prediction` boolean and
+  `confidence` are dropped (honesty rule 1), with a test proving it.
+- Demo step 9: second scheme registered/calibrated/activated next to synthid;
+  verify scans both (Bonferroni ×2) and synthid-marked text matches only the
+  synthid config. Measured: marked kgw z≈14.8 right key / z≈−1.1 wrong key.
+- CI tier-2 installs the kgw package. Suite: 92 passed (11 new kgw/vllm tests).
+- Next: 8.3 OIDC → 8.4 Postgres → 8.5 Vault Transit (plan, Milestone C).

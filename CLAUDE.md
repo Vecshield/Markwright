@@ -61,8 +61,9 @@ markwright/
 │   ├── api/                   # FastAPI — the single surface; every other surface is a client of it
 │   ├── cli/                   # typer CLI (thin API client + offline core imports)
 │   └── jobs/                  # background jobs (v1: arq/APScheduler; currently stub)
+├── packages/                  # separate scheme packages (markwright-scheme-kgw) — the §12 architecture test
 ├── data/null/                 # bundled starter null corpora (small, provisional-grade; see README there)
-├── hooks/                     # inference-side examples (HF generate; vLLM plugin in v1)
+├── hooks/                     # inference-side example scripts (HF generate, vLLM); logic in markwright.inference
 ├── tests/                     # three tiers — see "Testing" below
 │   └── fixtures/              # recorded real detections + token-id fixtures; regenerate.py rebuilds them
 ├── dashboard/                 # React+TS (Vite): Verify + Registry screens; plain fetch client
@@ -139,6 +140,9 @@ last one stopped:
   audit + offline-verifiable evidence bundles, detector publish, batch verify,
   offline verification bundles, and the 2-screen dashboard (Verify + Registry,
   Vite+React+TS under `dashboard/`; `npm run dev` proxies to :8000).
-- Still deferred (v1/v2 per design §11): OIDC, Postgres, Vault/KMS backends,
-  other schemes, threshold custody, robustness sweeps, X25519 session sealing,
-  async jobs, SDKs, Helm templates, remaining dashboard screens.
+- Milestone C (v1 slice) in progress: vLLM hook wrapper (interface-level;
+  live-vLLM unverified, needs Linux/CUDA) and the KGW adapter as a separate
+  package under `packages/` are DONE. Remaining: OIDC, Postgres, Vault Transit,
+  then threshold custody, robustness sweeps, X25519 sealing, async jobs, SDKs,
+  Helm templates, remaining dashboard screens (design §11 v1/v2).
+- Dev setup now includes: `uv pip install --python .venv/bin/python -e packages/markwright-scheme-kgw`

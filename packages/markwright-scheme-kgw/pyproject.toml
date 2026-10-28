@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "markwright-scheme-kgw"
+version = "0.1.0"
+description = "KGW green-list watermark adapter for Markwright (wraps transformers' WatermarkLogitsProcessor/WatermarkDetector; invents nothing)."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+dependencies = [
+  "markwright>=0.1.0",
+]
+
+[project.optional-dependencies]
+# detection/generation need the transformers implementation; the schema and
+# defaults work without it (so the registry can validate configs regardless)
+torch = ["torch>=2.2", "transformers>=4.46"]
+
+# THE architecture test (design §12): registering this entry point is the ONLY
+# integration step. No core change, no API change, no CLI change, no dashboard
+# change — the wizard lists kgw from GET /v1/schemes, the registry validates
+# params against this package's schema, and the verify pipeline treats the
+# z statistic like any other.
+[project.entry-points."markwright.schemes"]
+kgw = "markwright_scheme_kgw:KGWAdapter"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/markwright_scheme_kgw"]

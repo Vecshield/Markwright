@@ -81,3 +81,23 @@ schemes · threshold custody · robustness sweeps · SDKs · Helm templates · R
 - `NullBucket.p_value` magic `1e-3` clamp → explicit, documented floor (phase 1.3)
 - `no_evidence` dropped its p-value (`best=None`) — §7.3 implies it keeps one (phase 1.3)
 - `jobs.worker` referenced by compose but absent → stub module with a clear error (phase 0)
+
+## Milestone C — v1 slice (added 2026-10-28, per log's suggested order)
+
+### Phase 8 · Inference-stack integration + second scheme
+- [x] 8.1 `markwright.inference`: shared hook helpers (`fetch_generation_profile`,
+      `key_handle_from_profile`, `build_hf_processor`) + `VLLMLogitsProcessor`
+      adapting HF batch convention to vLLM's per-request convention (2- and
+      3-arg forms); `hooks/vllm_example.py`; HF hook deduped onto the helpers.
+      Interface-level: simulated-sampler tests pass; live vLLM needs Linux/CUDA
+      (unverified-live, tracked in the log).
+- [x] 8.2 **KGW adapter as a separate package** `packages/markwright-scheme-kgw`
+      (design §12's architecture test): entry-point registration only, zero core
+      edits. Wraps transformers WatermarkLogitsProcessor/Detector; HKDF-derived
+      hashing key; `publishable_detector=False` (the green list IS the key —
+      detector:publish answers 409); HF `prediction`/`confidence` booleans are
+      deliberately not propagated. Full API loop test incl. calibration on the
+      bundled corpus; demo step 9 shows multi-scheme Bonferroni scanning.
+- [ ] 8.3 OIDC bearer auth (authlib) replacing the static token map
+- [ ] 8.4 Postgres RegistryStore behind the same methods
+- [ ] 8.5 Vault Transit (OpenBao) KeyBackend

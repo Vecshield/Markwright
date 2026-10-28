@@ -22,6 +22,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
       - run: uv venv --python "3.12"
-      - run: uv pip install -e ".[dev,synthid]"
+      - run: uv pip install -e ".[dev,synthid]" -e packages/markwright-scheme-kgw
       # Tier 2 is offline-by-construction: token-id fixtures, no model weights.
       - run: .venv/bin/pytest -q -m "not slow and not network"
