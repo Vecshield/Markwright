@@ -1,0 +1,27 @@
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  tier1:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: { python: ["3.11", "3.12"] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv venv --python ${{ matrix.python }}
+      - run: uv pip install -e ".[dev]"
+      - run: .venv/bin/ruff check src tests
+      - run: .venv/bin/pytest -q -m "not torch and not slow and not network"
+
+  tier2-torch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv venv --python "3.12"
+      - run: uv pip install -e ".[dev,synthid]"
+      # Tier 2 is offline-by-construction: token-id fixtures, no model weights.
+      - run: .venv/bin/pytest -q -m "not slow and not network"

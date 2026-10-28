@@ -46,9 +46,20 @@ local-sealed = "markwright.keys.local_sealed:LocalSealedVault"
 [tool.hatch.build.targets.wheel]
 packages = ["src/markwright"]
 
+# Ship the wire-contract schemas and the starter null corpus inside the wheel,
+# so the API/CLI/SDK validate against the same files everywhere (design §4).
+[tool.hatch.build.targets.wheel.force-include]
+"schemas" = "markwright/resources/schemas"
+"data/null" = "markwright/resources/null_corpora"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+  "torch: needs torch+transformers (tier 2; offline, no model weights)",
+  "slow: full e2e with a small model download (tier 3; nightly/release)",
+  "network: touches the network (excluded from CI tiers 1 and 2)",
+]
 
 [tool.ruff]
 line-length = 100
