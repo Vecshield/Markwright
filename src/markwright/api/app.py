@@ -146,12 +146,12 @@ def create_config(model_id: str, version: str, c: ConfigIn, p=Depends(require("r
     try:
         adapter = schemes.get(c.scheme_id)
     except KeyError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     params = {**adapter.default_params(), **(c.scheme_params or {})}
     try:
         jsonschema.validate(params, adapter.params_schema())
     except jsonschema.ValidationError as e:
-        raise HTTPException(422, f"scheme_params: {e.message}")
+        raise HTTPException(422, f"scheme_params: {e.message}") from e
     row = reg.db.execute("SELECT tokenizer_ref FROM model_versions WHERE model_id=? AND model_version=?",
                          (model_id, version)).fetchone()
     if not row:
@@ -203,7 +203,7 @@ def transition(config_id: str, action: str, p=Depends(require("registry.write"))
     try:
         cfg = reg.transition(config_id, target)
     except ValueError as e:
-        raise HTTPException(409, str(e))
+        raise HTTPException(409, str(e)) from e
     details = {"quality": reg.get_calibration(cfg["calibration_ref"])["quality"]} \
         if target == "active" and cfg.get("calibration_ref") else {}
     STATE["audit"].append({"principal": p[0], "role": p[1]}, f"config.{action}",
@@ -234,9 +234,9 @@ def calibrate_config(config_id: str, body: CalibrationIn, p=Depends(require("reg
                                  cfg["tokenizer_ref"], body.null_corpus_ids,
                                  body.fpr_target or STATE["policy"]["fpr_target"])
     except (KeyError, ValueError) as e:
-        raise HTTPException(422, str(e))
+        raise HTTPException(422, str(e)) from e
     except RuntimeError as e:   # adapter's optional deps missing (e.g. torch)
-        raise HTTPException(503, str(e))
+        raise HTTPException(503, str(e)) from e
     run = reg.save_calibration(config_id, report, p[0])
     STATE["audit"].append({"principal": p[0], "role": p[1]}, "calibration.run",
                           {"kind": "calibration", "id": report["run_id"]},
@@ -265,7 +265,7 @@ def accept_calibration(run_id: str, p=Depends(require("registry.write"))):
     try:
         run = reg.accept_calibration(run_id)
     except KeyError:
-        raise HTTPException(404)
+        raise HTTPException(404) from None
     STATE["null_models"][run["config_id"]] = NullModel.from_dict(run["report"]["null_model"])
     STATE["audit"].append({"principal": p[0], "role": p[1]}, "calibration.accept",
                           {"kind": "calibration", "id": run_id},

@@ -7,9 +7,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from markwright import __version__
 from markwright.schemes.base import Detection, Detector, KeyHandle, SchemeAdapter, TokenIds
@@ -84,7 +85,7 @@ def verify(
     a candidate whose tokenizer is unavailable, or whose flags carry
     ``tokenizer_uncertain`` (hash mismatch, set by the caller), is never
     scored — no silent fallback (design §7.1 step 1, POC plan phase 3)."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     caveats: set[str] = {ALWAYS_CAVEAT}
     results: list[CandidateResult] = []
     scored_max = 0

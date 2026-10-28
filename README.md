@@ -11,13 +11,20 @@ strong the statistical evidence is that a text carries a specific mark.
 ## Quickstart (laptop, no cloud)
 
 ```bash
-pipx install "markwright[synthid]"           # or: pip install -e ".[synthid,dev]"
-docker compose --profile dev up -d           # API on :8000, dashboard on :3000
+uv venv .venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[synthid,dev]"
+.venv/bin/uvicorn markwright.api.app:app     # API on :8000 (dashboard: Milestone B)
 export MARKWRIGHT_TOKEN=operator-token       # dev tokens; v1 uses OIDC
 
 markwright init                              # 5 steps: model -> scheme -> keys -> test generation -> verify
 markwright verify --file essay.txt
+
+./scripts/demo.sh                            # or: the full loop, self-checking, in ~30 s
 ```
+
+See [docs/quickstart.md](docs/quickstart.md) for the step-by-step version, and
+[docs/poc-plan.md](docs/poc-plan.md) + [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md)
+for what is implemented vs planned (the Compose dev profile still references the
+not-yet-built dashboard).
 
 A result looks like this, and never like "AI: yes":
 

@@ -36,20 +36,20 @@ requires `calibration_ref` which nothing sets → no activation, verify always
 
 ### Phase 2 · Close the generation loop
 - [x] 2.1 `GET /v1/models/{id}/versions/{v}/generation-profile` (returns scheme params + sealed-material hex, MVP form; X25519 session sealing = v1); audited as `key.handle_issue`
-- [ ] 2.2 Fix `hooks/hf_generate_example.py` to the real response shape; `--max-new-tokens`, `--seed`
-- [ ] 2.3 CLI `markwright generate test --config --prompt`
+- [x] 2.2 Fix `hooks/hf_generate_example.py` to the real response shape; `--max-new-tokens`, `--seed`
+- [x] 2.3 CLI `markwright generate test --config --prompt`
 
 ### Phase 3 · Tokenizer integrity
-- [ ] 3.1 Delete the `len(text.split())` fallback; tokenizer hash recorded at calibration, compared at verify; mismatch/missing → `tokenizer_uncertain` + `insufficient_evidence`
-- [ ] 3.2 Per-candidate token counting (was: counted once with `candidates[0].tokenizer_ref`)
+- [x] 3.1 Delete the `len(text.split())` fallback; tokenizer hash recorded at calibration, compared at verify; mismatch/missing → `tokenizer_uncertain` + `insufficient_evidence`
+- [x] 3.2 Per-candidate token counting (was: counted once with `candidates[0].tokenizer_ref`)
 
 ### Phase 7 (A-part) · Mock tests → real tests
-- [ ] 7.1 Invert the two baseline assertions that enshrined the deadlock
-- [ ] 7.2 Tier 1: `ReplayAdapter` replays *recorded real* detections from `tests/fixtures/detections/`; registry lifecycle state-machine tests; RBAC matrix (4 roles × verbs); responses validated against `schemas/*.json`; floor/caveat tests; tokenizer-mismatch tests
-- [ ] 7.3 Tier 2 (`-m torch`, no network/weights): real SynthID adapter on checked-in token-id fixtures — marked ≫ 0.5, unmarked ≈ 0.5; wrong-key non-detection; truncation degradation; export_detector round-trip
-- [ ] 7.4 `tests/fixtures/regenerate.py` — fixtures are regenerable artifacts, not magic numbers
+- [x] 7.1 Invert the two baseline assertions that enshrined the deadlock
+- [x] 7.2 Tier 1: `ReplayAdapter` replays *recorded real* detections from `tests/fixtures/detections/`; registry lifecycle state-machine tests; RBAC matrix (4 roles × verbs); responses validated against `schemas/*.json`; floor/caveat tests; tokenizer-mismatch tests
+- [x] 7.3 Tier 2 (`-m torch`, no network/weights): real SynthID adapter on checked-in token-id fixtures — marked ≫ 0.5, unmarked ≈ 0.5; wrong-key non-detection; truncation degradation; export_detector round-trip
+- [x] 7.4 `tests/fixtures/regenerate.py` — fixtures are regenerable artifacts, not magic numbers
 
-**Milestone A exit gate** — `scripts/demo.sh`: register → key → marked
+**Milestone A exit gate** ✅ PASSED 2026-10-28 — `scripts/demo.sh`: register → key → marked
 generation (or fixture replay when no model) → calibrate provisional → activate
 → verify marked (band > no_evidence) → verify human (no_evidence) → verify 30
 tokens (insufficient) → audit chain verifies. This is design §11's MVP gate.

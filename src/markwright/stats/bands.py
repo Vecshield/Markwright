@@ -4,11 +4,11 @@ There is deliberately no boolean anywhere in this module.
 """
 from __future__ import annotations
 
-from enum import Enum
 import math
+from enum import StrEnum
 
 
-class Band(str, Enum):
+class Band(StrEnum):
     STRONG = "strong_evidence"
     MODERATE = "moderate_evidence"
     WEAK = "weak_evidence"

@@ -68,8 +68,8 @@ class LocalSealedVault:
         return hkdf(root, info, length)
 
     def mac(self, ref: BackendRef, data: bytes) -> bytes | None:
-        import hmac
         import hashlib
+        import hmac
 
         root = self._open(self._doc["keys"][ref.ref]["versions"][ref.version - 1])
         return hmac.new(root, data, hashlib.sha256).digest()

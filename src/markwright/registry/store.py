@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +38,7 @@ TRANSITIONS = {"draft": {"active", "retired"}, "active": {"deprecated"}, "deprec
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class RegistryStore:
@@ -97,9 +97,11 @@ class RegistryStore:
     def list_configs(self, model_id: str | None = None, statuses: tuple[str, ...] | None = None) -> list[dict]:
         q, args = "SELECT * FROM configs WHERE 1=1", []
         if model_id:
-            q += " AND model_id=?"; args.append(model_id)
+            q += " AND model_id=?"
+            args.append(model_id)
         if statuses:
-            q += f" AND status IN ({','.join('?' * len(statuses))})"; args += list(statuses)
+            q += f" AND status IN ({','.join('?' * len(statuses))})"
+            args += list(statuses)
         return [self._cfg(r) for r in self.db.execute(q + " ORDER BY created_at", args)]
 
     def transition(self, config_id: str, new_status: str) -> dict:
@@ -122,7 +124,8 @@ class RegistryStore:
 
     def set_calibration(self, config_id: str, calibration_ref: str, min_detectable_tokens: int | None) -> None:
         cfg = self.get_config(config_id)
-        vd = cfg["verification_defaults"]; vd["min_detectable_tokens"] = min_detectable_tokens
+        vd = cfg["verification_defaults"]
+        vd["min_detectable_tokens"] = min_detectable_tokens
         self.db.execute("UPDATE configs SET calibration_ref=?, verification_defaults=? WHERE config_id=?",
                         (calibration_ref, json.dumps(vd), config_id))
         self.db.commit()
@@ -182,7 +185,7 @@ class RegistryStore:
     def _cfg(r: sqlite3.Row) -> dict:
         d = dict(r)
         for k in ("scheme_params", "verification_defaults", "labels"):
-            d[k] = json.loads(d[k]) if d[k] else ({} if k != "verification_defaults" else {})
+            d[k] = json.loads(d[k]) if d[k] else {}
         return d
 
     # results (metadata only) -----------------------------------------------------------

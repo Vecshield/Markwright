@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
-from typing import Any, Iterable
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
@@ -43,7 +44,7 @@ class AuditChain:
             raise ValueError(f"audit details must never contain {sorted(leaked)}")
         entry = {
             "seq": len(self.entries),
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             "actor": actor,
             "action": action,
             "target": target,

@@ -108,13 +108,53 @@ def calibrate_accept(run_id: str):
     console.print(f"Config [bold]{run['config_id']}[/bold] can now be activated.")
 
 
+@generate_app.command("test")
+def generate_test(config: str = typer.Option(..., "--config"),
+                  prompt: str = typer.Option(..., "--prompt"),
+                  model: str = typer.Option(..., "--model", help="HF id or local path of the weights"),
+                  max_new_tokens: int = typer.Option(300, "--max-new-tokens"),
+                  seed: int = typer.Option(None, "--seed")):
+    """Run one marked test generation through the inference hook (needs torch)."""
+    cfg = _client().get(f"/v1/configs/{config}").json()
+    try:
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        from markwright.schemes import get as get_scheme
+        from markwright.schemes.base import KeyHandle
+    except ImportError:
+        console.print("[red]needs the synthid extra:[/red] uv pip install -e '.[synthid]'")
+        raise typer.Exit(1) from None
+    r = _client().get(f"/v1/models/{cfg['model_id']}/versions/{cfg['model_version']}/generation-profile",
+                      params={"config_id": config})
+    if r.status_code != 200:
+        raise typer.Exit(_fail(r))
+    prof = r.json()
+    key = KeyHandle(prof["key_ref"], prof["key_version"], prof["backend"], prof["backend_ref"],
+                    bytes.fromhex(prof["sealed_material"]))
+    adapter = get_scheme(prof["scheme_id"])
+    wm = adapter.hf_watermarking_config(prof["scheme_params"], key)
+    if seed is not None:
+        torch.manual_seed(seed)
+    tok = AutoTokenizer.from_pretrained(model)
+    lm = AutoModelForCausalLM.from_pretrained(model, torch_dtype="auto")
+    inputs = tok(prompt, return_tensors="pt")
+    s = prof["scheme_params"].get("sampling", {})
+    out = lm.generate(**inputs, do_sample=True, temperature=s.get("temperature", 1.0),
+                      top_k=s.get("top_k", 40), top_p=s.get("top_p", 0.99),
+                      max_new_tokens=max_new_tokens, watermarking_config=wm)
+    text = tok.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+    console.print(Panel(text, title=f"marked output ({prof['scheme_id']}, key v{prof['key_version']})",
+                        subtitle="verify with: markwright verify --text '<this text>'"))
+
+
 def _print_calibration(run: dict) -> None:
     lines = [f"[bold]calibration {run['run_id']}[/bold]  status={run['status']}  "
              f"quality={run['quality']}",
              f"  corpora    {', '.join(run['null_corpus_ids'])}  ({run['n_docs']} docs)",
              f"  resolution floor  {run['resolution_floor']:.1e}  "
              f"(fpr target {run['fpr_target']:.1e})",
-             f"  buckets    " + ", ".join(f"{b['length']}tok n={b['n']}" for b in run["buckets"])]
+             "  buckets    " + ", ".join(f"{b['length']}tok n={b['n']}" for b in run["buckets"])]
     lines += [f"  note: {n}" for n in run["notes"]]
     console.print(Panel("\n".join(lines), title="markwright calibrate"))
 
@@ -134,7 +174,8 @@ def verify(text: str = typer.Option(None, "--text"), file: Path = typer.Option(N
         raise typer.Exit(_fail(r))
     res = r.json()
     if as_json:
-        print(json.dumps(res, indent=2)); return
+        print(json.dumps(res, indent=2))
+        return
     _print_result(res)
 
 
@@ -159,9 +200,12 @@ def _print_result(res: dict) -> None:
 def init():
     """Five-step wizard: register model -> pick scheme -> keys -> test generation -> verify."""
     console.print("[bold]Step 1/5[/bold] register a model")
-    model = typer.prompt("model id (slug)"); version = typer.prompt("model version"); tok = typer.prompt("tokenizer (HF id or path)")
+    model = typer.prompt("model id (slug)")
+    version = typer.prompt("model version")
+    tok = typer.prompt("tokenizer (HF id or path)")
     model_add(model, version, tok)
-    console.print("[bold]Step 2/5[/bold] pick a scheme"); schemes()
+    console.print("[bold]Step 2/5[/bold] pick a scheme")
+    schemes()
     scheme = typer.prompt("scheme", default="synthid-text")
     console.print("[bold]Step 3/5[/bold] keys: a new lineage is created in the configured backend (local sealed vault in dev)")
     config_create(model=model, version=version, scheme=scheme, param=[], key="new")

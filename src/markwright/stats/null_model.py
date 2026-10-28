@@ -46,7 +46,7 @@ class NullBucket:
     gpd_shape: float | None         # xi
     gpd_scale: float | None         # sigma
     tail_frac: float                # P(S > u) under the null
-    boot: list["NullBucket"] = field(default_factory=list)   # bootstrap re-fits (no nested boot)
+    boot: list[NullBucket] = field(default_factory=list)   # bootstrap re-fits (no nested boot)
 
     @property
     def floor(self) -> float:
@@ -72,7 +72,7 @@ class NullBucket:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "NullBucket":
+    def from_dict(cls, d: dict) -> NullBucket:
         return cls(
             d["length"], d["n"], d["knots"], d["tail_threshold"],
             d["gpd_shape"], d["gpd_scale"], d["tail_frac"],
@@ -140,7 +140,7 @@ class NullModel:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "NullModel":
+    def from_dict(cls, d: dict) -> NullModel:
         return cls(
             d["statistic_name"],
             [NullBucket.from_dict(b) for b in d["buckets"]],

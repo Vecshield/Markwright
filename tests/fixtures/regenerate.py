@@ -89,6 +89,14 @@ def main() -> None:
             (HERE / "detections" / f"{name}.{tag}.json").write_text(
                 json.dumps({"case": name, "key_version": key.key_version, **asdict(det)}, indent=1))
 
+    # A REAL fitted null model (the exact artifact a calibration run produces),
+    # so tier-1 tests calibrate-free code paths against genuine statistics.
+    from markwright.calibration import run_calibration
+
+    report = run_calibration(adapter, params, key1, "gpt2", ["gutenberg-en-v1"], fpr_target=1e-2)
+    (HERE / "null_model.synthid.gutenberg-en-v1.json").write_text(
+        json.dumps(report["null_model"], separators=(",", ":")))
+
     (HERE / "meta.json").write_text(json.dumps({
         "seed": SEED, "vocab": VOCAB, "temperature": TEMPERATURE,
         "scheme_params": params,

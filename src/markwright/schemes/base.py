@@ -6,8 +6,9 @@ and never imports scheme math directly.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Protocol, Sequence, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 # Design §5: detect() accepts raw text OR pre-tokenized ids. The ids path needs
 # no tokenizer (and, for SynthID, no model at all), which is what makes offline

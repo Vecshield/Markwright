@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from markwright.schemes.base import KeyHandle, SchemeAdapter
@@ -76,7 +76,7 @@ def run_calibration(
 
     return {
         "run_id": str(uuid.uuid4()),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "null_corpus_ids": null_corpus_ids,
         "n_docs": n_docs,
         "scheme_id": adapter.scheme_id,

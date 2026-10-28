@@ -110,3 +110,57 @@ floor explanation; 30-token input → `insufficient_evidence`; verify latency
 
 Deliberately left undone: marked-corpus calibration (min_detectable_tokens
 stays null, reported in notes); X25519 sealing; async calibration jobs.
+
+### Phases 2.2–2.3, 3, 7 + exit gate (commit: phase-2-3-7)
+- **2.2** `hooks/hf_generate_example.py` rewritten against the real
+  generation-profile response (one API call; `--max-new-tokens`, `--seed`).
+- **2.3** CLI `markwright generate test --config --prompt --model` (friendly
+  error without the synthid extra).
+- **3.1/3.2** were implemented alongside phase 1 (same files): tokenizer hash
+  recorded at calibration-accept, compared at verify; `_count_tokens` raises
+  instead of word-splitting; per-candidate counting in the pipeline.
+- **7.x** Test suite converted from mocks to real:
+  - deleted `test_pipeline_and_api.py` (its StubAdapter returned an invented
+    constant, and its last two assertions enshrined the calibration deadlock).
+  - `tests/conftest.py`: `ReplayAdapter` (replays recorded REAL SynthID
+    detections), `ParityAdapter` (a real torch-free miniature scheme:
+    statistic = mean token parity) + `bootstrap_parity_config` driving every
+    step over real HTTP routes, fresh-state `api` fixture.
+  - `tests/test_pipeline.py` (tier 1): honesty rules against the REAL fitted
+    null-model fixture — bands, floor capping, Bonferroni, tokenizer-uncertain,
+    digest rules, bool-raises.
+  - `tests/test_api.py` (tier 1): full loop incl. restart hydration; lifecycle
+    state machine incl. no-resurrection; RBAC matrix (11 cases); calibration
+    route validation (unknown corpus, tokenizer mismatch); generation-profile
+    (issue+audit, 403 for verifier, 409 for deprecated); every verify response
+    and audit entry validated against `schemas/*.json`.
+  - `tests/test_synthid.py` (tier 2, offline): real adapter over token-id
+    fixtures — marked>0.72 / unmarked≈0.5 / WRONG KEY sees no signal (asserted
+    on the statistic gap, NOT p-values: analytic p overstates on long
+    sequences, and calibrated p of uniform-logit fixtures sits at the floor —
+    the domain-shift limitation documented in data/null/README.md, now also in
+    the test's docstring); truncation monotonicity; export_detector roundtrip;
+    HKDF determinism/version scoping. Str-vs-ids consistency test marked
+    `network` (needs the gpt2 tokenizer).
+  - `tests/test_stats.py`: + resolution-floor semantics, band capping, quality
+    tag, precomputed-boot interval + serialisation roundtrip, and a regression
+    test for the 3-bucket interpolation TypeError.
+  - fixtures also include `null_model.synthid.gutenberg-en-v1.json` — a real
+    calibration output used by tier-1.
+- Lint: explicit ruff ruleset in pyproject (so CI and local agree); B904/E702
+  fixes; `Band` → `StrEnum`.
+- README + docs/quickstart.md updated to the real commands (uv, uvicorn,
+  gutenberg-en-v1, generate test, demo.sh); note that Compose dev still
+  references the unbuilt dashboard.
+- **Milestone A exit gate PASSED** against a live uvicorn server
+  (`./scripts/demo.sh` → scripts/demo.py): register → key → calibrate(prov.)
+  → activate → processor-driven marked generation via generation-profile →
+  verify marked = moderate_evidence (p_adj 3.4e-3, provisional caveat) /
+  human = no_evidence / 30 tokens = insufficient (no p-value) → audit chain
+  verifies with all 7 expected action types present.
+- Suite: 65 passed (tier1+2), 1 network-marked; ruff clean.
+
+### Where this leaves the repo
+Milestone A complete. Next session starts at Milestone B phase 4.1 (key
+lifecycle routes — vault rotate/revoke/destroy exist and are uncalled) or
+phase 6 (dashboard) depending on priority. docs/poc-plan.md is current.
