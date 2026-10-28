@@ -54,7 +54,7 @@ generation (or fixture replay when no model) → calibrate provisional → activ
 → verify marked (band > no_evidence) → verify human (no_evidence) → verify 30
 tokens (insufficient) → audit chain verifies. This is design §11's MVP gate.
 
-## Milestone B — infra parity (NOT STARTED)
+## Milestone B — infra parity ✅ COMPLETE 2026-10-28 (deferred items listed below)
 
 ### Phase 4 · API + service surface
 - [x] 4.1 Key lifecycle routes: `POST /v1/keys`, `:rotate`, `:revoke`, `:destroy`, `GET /v1/keys?lineage=`; enforce `generate_until`/`verify_until`; `historical_key` flag on rotated keys
@@ -70,7 +70,7 @@ tokens (insufficient) → audit chain verifies. This is design §11's MVP gate.
 - [x] `markwright bundle export` + `markwright verify --offline --bundle` (design §7.5)
 
 ### Phase 6 · Dashboard (two screens)
-- [ ] Vite+React+TS, generated OpenAPI client; Verify screen rendered from `schemas/verification-result.json` (non-collapsible caveats/FPR, one hue, no green/red); Registry table. Other screens = v1.
+- [x] Vite+React+TS (hand-typed client for POC; OpenAPI-generated in v1); Verify screen rendered from `schemas/verification-result.json` (non-collapsible caveats/FPR, one hue, no green/red); Registry table. Other screens = v1.
 
 ### Deferred to v1/v2 (per design §11, not parity failures)
 OIDC/RBAC beyond static tokens · Postgres · Vault/KMS/HSM backends · other six

@@ -188,6 +188,18 @@ def test_verifier_sees_no_params_or_key_refs(api):
     assert "scheme_params" in full and "key_ref" in full
 
 
+def test_configs_listing_filters_and_role_views(api):
+    """GET /v1/configs?model=&status= (design §8.1) — feeds the dashboard registry."""
+    client, _ = api
+    config_id = bootstrap_parity_config(client)
+    rows = client.get("/v1/configs", params={"model": "acme-llm"}, headers=OP).json()
+    assert [r["config_id"] for r in rows] == [config_id] and "key_ref" in rows[0]
+    rows_v = client.get("/v1/configs", headers=VERIFIER).json()
+    assert len(rows_v) == 1 and "key_ref" not in rows_v[0] and "scheme_params" not in rows_v[0]
+    assert client.get("/v1/configs", params={"status": "draft"}, headers=OP).json() == []
+    assert client.get("/v1/configs", params={"status": "active"}, headers=OP).json() != []
+
+
 def test_denied_calls_are_audited_and_chain_valid(api):
     client, a = api
     client.post("/v1/models", json={"model_id": "nope"}, headers=VERIFIER)

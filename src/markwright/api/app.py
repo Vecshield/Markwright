@@ -212,15 +212,31 @@ def create_config(model_id: str, version: str, c: ConfigIn, p=Depends(require("r
     return cfg
 
 
+_VERIFIER_CONFIG_FIELDS = ("config_id", "model_id", "model_version", "config_version",
+                           "scheme_id", "status", "verification_defaults")
+
+
+def _config_view(cfg: dict, role: str) -> dict:
+    """Verifiers never see parameters or key refs (design §8.1)."""
+    if role == "verifier":
+        return {k: cfg[k] for k in _VERIFIER_CONFIG_FIELDS}
+    return cfg
+
+
+@app.get("/v1/configs")
+def list_all_configs(model: str | None = None, status: str | None = None,
+                     p=Depends(require("registry.read"))):
+    statuses = (status,) if status else None
+    cfgs = STATE["registry"].list_configs(model_id=model, statuses=statuses)
+    return [_config_view(c, p[1]) for c in cfgs]
+
+
 @app.get("/v1/configs/{config_id}")
 def get_config(config_id: str, p=Depends(require("registry.read"))):
     cfg = STATE["registry"].get_config(config_id)
     if not cfg:
         raise HTTPException(404)
-    if p[1] == "verifier":   # verifiers never see parameters or key refs
-        keep = ("config_id", "model_id", "model_version", "config_version", "scheme_id", "status", "verification_defaults")
-        return {k: cfg[k] for k in keep}
-    return cfg
+    return _config_view(cfg, p[1])
 
 
 @app.post("/v1/configs/{config_id}:{action}")

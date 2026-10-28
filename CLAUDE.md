@@ -65,7 +65,7 @@ markwright/
 ├── hooks/                     # inference-side examples (HF generate; vLLM plugin in v1)
 ├── tests/                     # three tiers — see "Testing" below
 │   └── fixtures/              # recorded real detections + token-id fixtures; regenerate.py rebuilds them
-├── dashboard/                 # React+TS (Vite) — NOT YET BUILT (Milestone B phase 6)
+├── dashboard/                 # React+TS (Vite): Verify + Registry screens; plain fetch client
 ├── deploy/                    # Dockerfile, compose assets, Helm chart skeleton
 └── docs/
     ├── poc-plan.md            # the plan being executed (milestones A/B, phases 0–7)
@@ -134,10 +134,11 @@ last one stopped:
 
 ## Current status (keep this section fresh)
 
-- Milestone A (working POC) — implemented in this repo: phases 0–3 plus test
-  tiers 1–2. See the log for exact state and the demo script.
-- Milestone B (infra parity: key-lifecycle API, audit persistence/signing,
-  artifact store, detector publish, batch verify, offline bundles, 2-screen
-  dashboard) — **not started**; specified in `docs/poc-plan.md`.
-- Dashboard is absent; `docker compose --profile dev up` will fail on the
-  dashboard service until Milestone B phase 6.
+- Milestone A (working POC) and Milestone B (infra parity) are COMPLETE:
+  calibration path, key lifecycle (rotate/revoke/destroy), persistent signed
+  audit + offline-verifiable evidence bundles, detector publish, batch verify,
+  offline verification bundles, and the 2-screen dashboard (Verify + Registry,
+  Vite+React+TS under `dashboard/`; `npm run dev` proxies to :8000).
+- Still deferred (v1/v2 per design §11): OIDC, Postgres, Vault/KMS backends,
+  other schemes, threshold custody, robustness sweeps, X25519 session sealing,
+  async jobs, SDKs, Helm templates, remaining dashboard screens.

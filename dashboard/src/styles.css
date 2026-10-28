@@ -1,0 +1,143 @@
+/* UI rules from design §8.3, enforced in styles:
+   - bands use ONE hue at varying weight; no green/red traffic lights
+   - no_evidence is styled IDENTICALLY to insufficient_evidence
+   - FPR target + caveats always rendered, never collapsible */
+
+:root {
+  --ink: #1a1d23;
+  --muted: #5b616e;
+  --line: #e3e5e9;
+  --bg: #fafafa;
+  --card: #ffffff;
+  /* the single evidence hue (indigo) at varying weight */
+  --hue-strong: #2f3b8f;
+  --hue-moderate: #5a66b8;
+  --hue-weak: #9aa2d6;
+  --hue-none: #70757f;      /* same neutral for no_evidence AND insufficient */
+  --mono: "SF Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 1.25rem;
+  padding: 0.9rem 1.5rem;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+
+header h1 { font-size: 1.1rem; margin: 0; }
+header nav a {
+  margin-right: 1rem;
+  color: var(--muted);
+  text-decoration: none;
+  padding-bottom: 2px;
+}
+header nav a.active { color: var(--ink); border-bottom: 2px solid var(--hue-strong); }
+header .spacer { flex: 1; }
+header select { font: inherit; padding: 0.2rem 0.4rem; }
+
+main { max-width: 60rem; margin: 1.5rem auto; padding: 0 1.5rem; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+textarea {
+  width: 100%;
+  min-height: 9rem;
+  font: 14px/1.5 var(--mono);
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+button {
+  font: inherit;
+  padding: 0.45rem 1.1rem;
+  border: 1px solid var(--hue-strong);
+  background: var(--hue-strong);
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: default; }
+.row { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; }
+.row label { color: var(--muted); font-size: 0.9rem; }
+
+/* result card */
+.band {
+  display: inline-block;
+  padding: 0.3rem 0.9rem;
+  border-radius: 6px;
+  color: white;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.band-strong_evidence { background: var(--hue-strong); }
+.band-moderate_evidence { background: var(--hue-moderate); }
+.band-weak_evidence { background: var(--hue-weak); color: var(--ink); }
+/* identical on purpose: absence of evidence is not a different kind of answer */
+.band-no_evidence, .band-insufficient_evidence { background: var(--hue-none); }
+
+.band-reason { margin: 0.75rem 0 0.25rem; }
+
+dl.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1.25rem;
+  margin: 1rem 0 0;
+}
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; font-family: var(--mono); font-size: 0.92rem; }
+
+/* non-collapsible by construction: no <details>, no toggles, always in flow */
+.caveats {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+.caveats h3 { margin: 0 0 0.4rem; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.caveats ul { margin: 0; padding-left: 1.2rem; }
+.caveats li { margin-bottom: 0.15rem; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+th { text-align: left; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--line); padding: 0.4rem 0.6rem; }
+td { border-bottom: 1px solid var(--line); padding: 0.45rem 0.6rem; font-family: var(--mono); font-size: 0.88rem; }
+td.status-active { font-weight: 600; }
+
+.status-chip {
+  font: 0.78rem var(--mono);
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.status-chip.active { border-color: var(--hue-strong); color: var(--hue-strong); }
+
+.error { color: #8f2f2f; font-family: var(--mono); font-size: 0.88rem; white-space: pre-wrap; }
+.hint { color: var(--muted); font-size: 0.88rem; }
+
+footer {
+  max-width: 60rem;
+  margin: 2rem auto;
+  padding: 0 1.5rem 2rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}

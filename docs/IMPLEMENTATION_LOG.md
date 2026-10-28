@@ -219,3 +219,35 @@ phase 6 (dashboard) depending on priority. docs/poc-plan.md is current.
   so all of this runs without torch. Suite: 80 passed.
 - Deliberately deferred: chain-head column on results (4.8 note), threshold
   custody / approvals (v2), async batch (v1), X25519 sealing (v1).
+
+### Phase 6 — dashboard, two screens (commit: phase-6)
+- Added `GET /v1/configs?model=&status=` (design §8.1; was missing) with the
+  same role filtering as the single-config route; tier-1 test added.
+- `dashboard/`: Vite + React + TS, NO extra runtime deps (plain fetch client in
+  `src/api.ts`, hand-typed against schemas/ — OpenAPI-generated client is v1).
+  Screens: **Verify** (text or token-ids input, fpr tighten-only field, result
+  card, per-candidate table) and **Registry** (models × configs, status chips,
+  calibration/min-detectable/detector columns). Role switcher uses the dev
+  bearer tokens; responsible-use text is a permanent footer.
+- Design §8.3 UI rules are encoded in CSS, not convention: ONE hue (indigo) at
+  varying weight for bands, `no_evidence` styled IDENTICALLY to
+  `insufficient_evidence`, no green/red anywhere; the caveats block and FPR
+  target are plain in-flow elements (no <details>, no toggles — structurally
+  non-collapsible); every p-value renders with its 95% interval.
+- `dashboard/Dockerfile` (node build → nginx with /v1 proxy to the api
+  service), so `docker compose --profile dev up` can now actually build all
+  services. `.claude/launch.json` added for the dev server.
+- VERIFIED LIVE in a browser: seeded a real API (demo.py), generated marked
+  ids with the deployment key, pasted into the Verify screen → MODERATE
+  EVIDENCE card with p=3.4e-3 + interval, mean_g=0.825 in the candidate table,
+  caveats shown; Registry shows demo-llm/active with the verifier role view
+  (calibration ref withheld). Screenshot-checked both screens.
+- Suite: 81 passed; dashboard `npm run build` clean.
+
+### Where this leaves the repo (end of session 2)
+Milestones A and B are complete. The remaining plan items are the design's own
+v1/v2 scope (OIDC, Postgres, cloud key backends, more schemes, threshold
+custody, robustness sweeps, X25519 sealing, async jobs, SDKs, Helm templates,
+dashboard screens 3–7). Next session: pick from design §11 v1 list; suggested
+order: vLLM hook plugin → KGW adapter as the architecture test (design §12
+"adding a scheme") → OIDC.
