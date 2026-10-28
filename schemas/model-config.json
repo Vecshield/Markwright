@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://markwright.dev/schemas/model-config.json",
+  "title": "ModelConfig",
+  "type": "object",
+  "required": [
+    "config_id",
+    "model_id",
+    "model_version",
+    "config_version",
+    "scheme_id",
+    "scheme_params",
+    "key_ref",
+    "status",
+    "created_at",
+    "created_by"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "config_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "model_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$"
+    },
+    "model_version": {
+      "type": "string"
+    },
+    "model_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "config_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "supersedes": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    },
+    "scheme_id": {
+      "type": "string",
+      "enum": [
+        "synthid-text",
+        "kgw",
+        "unigram",
+        "kuditipudi-exp",
+        "kuditipudi-its",
+        "aaronson-expmin",
+        "cgz-undetectable"
+      ]
+    },
+    "scheme_version": {
+      "type": "string"
+    },
+    "scheme_params": {
+      "type": "object"
+    },
+    "tokenizer_ref": {
+      "type": "string"
+    },
+    "key_ref": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "detector_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "calibration_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verification_defaults": {
+      "type": "object",
+      "required": [
+        "fpr_target",
+        "min_tokens"
+      ],
+      "properties": {
+        "fpr_target": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 0.05,
+          "default": 0.0001
+        },
+        "min_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "min_detectable_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "deprecated",
+        "retired"
+      ]
+    },
+    "generate_from": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "generate_until": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "verify_until": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_by": {
+      "type": "string"
+    }
+  }
+}

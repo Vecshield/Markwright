@@ -1,0 +1,1 @@
+See the design document, §11. MVP 0.1 → v1 1.0 (four schemes, Vault/KMS, OIDC, calibration jobs, audit exports, Helm) → v2 2.0 (PRF schemes, HSM, threshold custody, detect-only service, Rekor, C2PA, TS SDK).

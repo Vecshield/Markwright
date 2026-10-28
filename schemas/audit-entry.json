@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://markwright.dev/schemas/audit-entry.json",
+  "title": "AuditEntry",
+  "type": "object",
+  "required": [
+    "seq",
+    "ts",
+    "actor",
+    "action",
+    "target",
+    "outcome",
+    "prev_hash",
+    "entry_hash"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "actor": {
+      "type": "object",
+      "required": [
+        "principal",
+        "role"
+      ],
+      "properties": {
+        "principal": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "operator",
+            "verifier",
+            "auditor",
+            "system"
+          ]
+        },
+        "auth_method": {
+          "type": "string"
+        },
+        "ip_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "config.create",
+        "config.activate",
+        "config.deprecate",
+        "config.retire",
+        "key.create",
+        "key.rotate",
+        "key.revoke",
+        "key.destroy",
+        "key.handle_issue",
+        "key.custody_change",
+        "detector.publish",
+        "calibration.run",
+        "calibration.accept",
+        "verify.single",
+        "verify.batch",
+        "export.evidence",
+        "auth.login",
+        "auth.denied",
+        "policy.change",
+        "anchor"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "denied",
+        "error"
+      ]
+    },
+    "details": {
+      "type": "object"
+    },
+    "prev_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "entry_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "signature": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

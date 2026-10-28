@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://markwright.dev/schemas/verification-result.json",
+  "title": "VerificationResult",
+  "type": "object",
+  "required": [
+    "result_id",
+    "requested_at",
+    "token_count",
+    "fpr_target",
+    "band",
+    "candidates",
+    "caveats",
+    "engine"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "result_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "request_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "requested_by": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "text_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "token_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scored_token_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "fpr_target": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 0.05
+    },
+    "band": {
+      "type": "string",
+      "enum": [
+        "strong_evidence",
+        "moderate_evidence",
+        "weak_evidence",
+        "no_evidence",
+        "insufficient_evidence"
+      ]
+    },
+    "band_reason": {
+      "type": "string"
+    },
+    "best_match": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "config_id",
+          "scheme_id",
+          "statistic",
+          "p_value",
+          "p_value_adjusted"
+        ],
+        "properties": {
+          "config_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scheme_id": {
+            "type": "string"
+          },
+          "key_version": {
+            "type": "integer"
+          },
+          "statistic": {
+            "type": "object",
+            "required": [
+              "name",
+              "value"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "number"
+              },
+              "extra": {
+                "type": "object"
+              }
+            }
+          },
+          "p_value": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "p_value_adjusted": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "ci_95": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "min_detectable_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "null_model_ref": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "caveats": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "short_text",
+          "low_entropy",
+          "possible_paraphrase",
+          "tokenizer_uncertain",
+          "multiple_candidates",
+          "historical_key",
+          "spoofing_not_excluded",
+          "result_is_probabilistic"
+        ]
+      }
+    },
+    "engine": {
+      "type": "object",
+      "required": [
+        "markwright_version",
+        "mode"
+      ],
+      "properties": {
+        "markwright_version": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "server",
+            "offline"
+          ]
+        },
+        "adapter_versions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "signature": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

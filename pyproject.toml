@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "markwright"
+version = "0.1.0"
+description = "Open-source control plane for LLM text watermarking: registry, keys, calibrated verification. Wraps published schemes; invents none."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.6",
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "cryptography>=42",
+  "jsonschema>=4.21",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "typer>=0.12",
+  "rich>=13",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+synthid = ["torch>=2.2", "transformers>=4.46"]
+markllm = ["markllm>=0.1"]            # KGW extended variants, Unigram, EXP / EXP-Edit / ITS-Edit
+vault = ["hvac>=2.1"]
+aws = ["boto3>=1.34"]
+gcp = ["google-cloud-kms>=2.21"]
+azure = ["azure-keyvault-keys>=4.9", "azure-identity>=1.15"]
+postgres = ["sqlalchemy>=2.0", "alembic>=1.13", "psycopg[binary]>=3.1"]
+dev = ["pytest>=8", "pytest-asyncio", "ruff", "mypy", "httpx"]
+
+[project.scripts]
+markwright = "markwright.cli.main:app"
+
+# Scheme adapters register here. Third-party schemes add their own entry point
+# in their own package; the core never needs to change.
+[project.entry-points."markwright.schemes"]
+synthid-text = "markwright.schemes.synthid:SynthIDTextAdapter"
+
+[project.entry-points."markwright.key_backends"]
+local-sealed = "markwright.keys.local_sealed:LocalSealedVault"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/markwright"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100

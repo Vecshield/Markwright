@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://markwright.dev/schemas/key-record.json",
+  "title": "KeyRecord",
+  "type": "object",
+  "required": [
+    "key_id",
+    "purpose",
+    "backend",
+    "backend_ref",
+    "key_version",
+    "state",
+    "valid_from",
+    "created_at",
+    "created_by"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "key_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "purpose": {
+      "type": "string",
+      "enum": [
+        "generation",
+        "signing"
+      ]
+    },
+    "owner_model_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "backend": {
+      "type": "string",
+      "enum": [
+        "aws-kms",
+        "gcp-kms",
+        "azure-keyvault",
+        "vault-transit",
+        "pkcs11",
+        "local-sealed"
+      ]
+    },
+    "backend_ref": {
+      "type": "string"
+    },
+    "key_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "lineage_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "derivation": {
+      "type": "object",
+      "required": [
+        "kdf",
+        "info"
+      ],
+      "properties": {
+        "kdf": {
+          "type": "string",
+          "enum": [
+            "hkdf-sha256"
+          ]
+        },
+        "info": {
+          "type": "string"
+        },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "custody": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "single",
+            "split-knowledge",
+            "threshold"
+          ]
+        },
+        "threshold": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 2
+        },
+        "shares": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 2
+        },
+        "custodians": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "active",
+        "rotating",
+        "verify-only",
+        "revoked",
+        "destroyed"
+      ]
+    },
+    "valid_from": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "generate_until": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "verify_until": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "rotation_policy": {
+      "type": "object",
+      "properties": {
+        "interval_days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "overlap_days": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "auto": {
+          "type": "boolean"
+        }
+      }
+    },
+    "public_detector_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_by": {
+      "type": "string"
+    },
+    "revoked_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "revocation_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

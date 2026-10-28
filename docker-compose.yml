@@ -1,0 +1,66 @@
+# Profiles:
+#   dev      -> API + dashboard, SQLite, local sealed vault. One command, no cloud.
+#   onprem   -> + Postgres, MinIO, OpenBao (Vault-compatible), Keycloak (OIDC). No egress.
+#   provider -> like onprem but expects an external KMS/HSM and Redis for workers.
+services:
+  api:
+    build: { context: ., dockerfile: deploy/Dockerfile.api }
+    image: ghcr.io/markwright/api:0.1.0
+    environment:
+      MARKWRIGHT_PROFILE: ${MARKWRIGHT_PROFILE:-dev}
+      MARKWRIGHT_DB: ${MARKWRIGHT_DB:-/data/markwright.sqlite}
+      MARKWRIGHT_VAULT: /data/vault.json
+      MARKWRIGHT_VAULT_PASSPHRASE: ${MARKWRIGHT_VAULT_PASSPHRASE:-change-me}
+      MARKWRIGHT_FPR_TARGET: ${MARKWRIGHT_FPR_TARGET:-1e-4}
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+    volumes: ["data:/data", "${MODELS_DIR:-./models}:/models:ro"]
+    ports: ["8000:8000"]
+    command: uvicorn markwright.api.app:app --host 0.0.0.0 --port 8000
+    profiles: ["dev", "onprem", "provider"]
+
+  dashboard:
+    build: { context: ./dashboard }
+    image: ghcr.io/markwright/dashboard:0.1.0
+    environment: { VITE_API_URL: http://localhost:8000 }
+    ports: ["3000:80"]
+    profiles: ["dev", "onprem", "provider"]
+
+  worker:            # calibration + batch verification jobs
+    image: ghcr.io/markwright/api:0.1.0
+    command: python -m markwright.jobs.worker
+    environment: { MARKWRIGHT_PROFILE: ${MARKWRIGHT_PROFILE:-onprem}, REDIS_URL: redis://redis:6379/0 }
+    depends_on: [redis]
+    profiles: ["onprem", "provider"]
+
+  postgres:
+    image: postgres:16
+    environment: { POSTGRES_DB: markwright, POSTGRES_USER: markwright, POSTGRES_PASSWORD: ${PG_PASSWORD:-change-me} }
+    volumes: ["pg:/var/lib/postgresql/data"]
+    profiles: ["onprem", "provider"]
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment: { MINIO_ROOT_USER: markwright, MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-change-me-too} }
+    volumes: ["minio:/data"]
+    profiles: ["onprem", "provider"]
+
+  openbao:           # Vault-compatible transit backend for on-prem key custody
+    image: openbao/openbao:2
+    cap_add: [IPC_LOCK]
+    environment: { BAO_DEV_ROOT_TOKEN_ID: ${BAO_TOKEN:-dev-root} }
+    profiles: ["onprem"]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev --import-realm
+    environment: { KC_BOOTSTRAP_ADMIN_USERNAME: admin, KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_PASSWORD:-admin} }
+    volumes: ["./deploy/compose/keycloak-realm.json:/opt/keycloak/data/import/realm.json:ro"]
+    ports: ["8080:8080"]
+    profiles: ["onprem"]
+
+  redis:
+    image: redis:7
+    profiles: ["onprem", "provider"]
+
+volumes: { data: {}, pg: {}, minio: {} }
