@@ -323,3 +323,48 @@ order: vLLM hook plugin → KGW adapter as the architecture test (design §12
   faithful port (SQLAlchemy + the immutability trigger + placeholders) is a
   rewrite that deserves its own phase with a real PG container, not a
   tail-of-session rush.
+
+### Phase 8.4 — Postgres RegistryStore (commit: phase-8c)
+- `registry/store.py` rewritten on SQLAlchemy Core. `RegistryStore` accepts a
+  file path / ":memory:" (SQLite, fully back-compat) or any SQLAlchemy URL
+  (postgresql+psycopg). New `Database` wrapper: named-parameter text SQL in,
+  list-of-dicts out, one transaction per statement (matching the previous
+  autocommit behaviour; noted that multi-statement ops are not atomic — same
+  as before). sqlite uses StaticPool + check_same_thread=False so :memory:
+  behaves as a single shared connection.
+- Immutability trigger per dialect: SQLite `UPDATE OF ... WHEN` as before;
+  Postgres plpgsql function + trigger with IS DISTINCT FROM. Both surface as
+  a uniform `ImmutableConfigError` via the wrapper. DIALECT NUANCE recorded in
+  the PG test: sqlite fires when a guarded column is MENTIONED, plpgsql when a
+  value actually CHANGES — no-op updates pass on PG, real mutations abort on
+  both. (PG semantics are the more correct reading of "immutable".)
+- AuditChain now persists through the same Database wrapper (works on both
+  engines unchanged). Raw SQL in app.py/tests replaced with store methods
+  (get_signing_key, get_model_version, result_counts_by_band,
+  config_counts_by_status).
+- sqlalchemy>=2.0 promoted to a core dependency (the registry is core);
+  psycopg stays in the `postgres` extra.
+- Tests: full tiers 1+2 pass unchanged on the SQLAlchemy store (103).
+  `tests/test_postgres.py` (marker network) ran green against a real
+  postgres:16 container: store roundtrip incl. nested JSON + supersedes
+  chains, plpgsql trigger (abort + rollback + draft-editable), accepted-null-
+  model hydration join, result filters, and the FULL HTTP control-plane loop
+  on PG including audit-chain restart survival and signed evidence export.
+  CI gained a `postgres-integration` job (GH Actions service container) so
+  the PG path is enforced, not just locally exercised.
+  Container: `docker run -d --rm --name mw-postgres -p 5433:5432
+  -e POSTGRES_USER=markwright -e POSTGRES_PASSWORD=test
+  -e POSTGRES_DB=markwright postgres:16-alpine`.
+- Deferred: Alembic migrations (fresh deployments only for POC; the plan's
+  v1 list keeps it), SQLAlchemy-native JSON columns (TEXT is portable and the
+  wire format anyway).
+
+### Where this leaves the repo (end of session 3)
+Milestone C: 8.1 vLLM wrapper ✓, 8.2 KGW package ✓, 8.3 OIDC ✓,
+8.4 Postgres ✓, 8.5 Vault Transit ✓. The design's v1 gate is now substantially
+met on the infra side. Remaining v1/v2 (plan): threshold custody, calibration
+robustness sweeps (marked corpus + edit fractions), X25519 session sealing,
+async jobs (arq/APScheduler), Alembic, SDKs, Helm templates, dashboard
+screens 3–7, Unigram/Kuditipudi schemes. Suggested next: calibration
+robustness sweeps (fills min_detectable_tokens, the one null field on every
+result card) or X25519 sealing (closes the MVP's one security shortcut).

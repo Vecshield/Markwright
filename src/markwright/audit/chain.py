@@ -14,11 +14,13 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-import sqlite3
 import tarfile
 from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # avoid a hard registry import; any object with .execute(sql, params) works
+    from markwright.registry.store import Database
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
@@ -38,14 +40,13 @@ def entry_hash(entry: dict[str, Any]) -> str:
 
 class AuditChain:
     def __init__(self, signing_key: Ed25519PrivateKey | None = None, anchor_every: int = 100,
-                 db: sqlite3.Connection | None = None):
+                 db: Database | None = None):
         self.entries: list[dict[str, Any]] = []
         self._sk = signing_key
         self.anchor_every = anchor_every
         self._db = db
         if db is not None:
             db.execute("CREATE TABLE IF NOT EXISTS audit_log (seq INTEGER PRIMARY KEY, entry TEXT)")
-            db.commit()
             self.entries = [json.loads(r["entry"]) for r in
                             db.execute("SELECT entry FROM audit_log ORDER BY seq")]
 
@@ -95,12 +96,11 @@ class AuditChain:
         if self._db is None:
             return
         if update:
-            self._db.execute("UPDATE audit_log SET entry=? WHERE seq=?",
-                             (json.dumps(entry), entry["seq"]))
+            self._db.execute("UPDATE audit_log SET entry=:e WHERE seq=:s",
+                             {"e": json.dumps(entry), "s": entry["seq"]})
         else:
-            self._db.execute("INSERT INTO audit_log VALUES (?, ?)",
-                             (entry["seq"], json.dumps(entry)))
-        self._db.commit()
+            self._db.execute("INSERT INTO audit_log (seq, entry) VALUES (:s, :e)",
+                             {"s": entry["seq"], "e": json.dumps(entry)})
 
     @staticmethod
     def verify(entries: Iterable[dict[str, Any]], public_key: Ed25519PublicKey | None = None) -> tuple[bool, str]:

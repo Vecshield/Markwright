@@ -231,15 +231,15 @@ def test_readyz_and_metrics(api):
 def test_active_config_is_immutable_at_the_db_level(api):
     client, a = api
     cfg = bootstrap_parity_config(client)
-    import sqlite3
+    from markwright.registry.store import ImmutableConfigError
     db = a.STATE["registry"].db
-    with pytest.raises(sqlite3.IntegrityError, match="immutable"):
-        db.execute("UPDATE configs SET scheme_params='{}' WHERE config_id=?", (cfg,))
-    with pytest.raises(sqlite3.IntegrityError, match="immutable"):
-        db.execute("UPDATE configs SET key_ref='evil' WHERE config_id=?", (cfg,))
-    # lifecycle columns stay mutable
-    db.execute("UPDATE configs SET status='deprecated' WHERE config_id=?", (cfg,))
-    db.rollback()
+    with pytest.raises(ImmutableConfigError, match="immutable"):
+        db.execute("UPDATE configs SET scheme_params='{}' WHERE config_id=:id", {"id": cfg})
+    with pytest.raises(ImmutableConfigError, match="immutable"):
+        db.execute("UPDATE configs SET key_ref='evil' WHERE config_id=:id", {"id": cfg})
+    # lifecycle columns stay mutable (and the failed statements rolled back)
+    db.execute("UPDATE configs SET status='deprecated' WHERE config_id=:id", {"id": cfg})
+    assert a.STATE["registry"].get_config(cfg)["scheme_params"] != {}
 
 
 # ---- phase 5: offline bundles ----------------------------------------------------------------

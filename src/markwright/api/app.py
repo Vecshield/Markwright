@@ -105,14 +105,14 @@ def _ensure_signing_key():
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
     reg: RegistryStore = STATE["registry"]
-    row = reg.db.execute("SELECT * FROM keys WHERE purpose='signing' AND state='active'").fetchone()
+    row = reg.get_signing_key()
     if row is None:
         import uuid
         lineage = str(uuid.uuid4())
         ref = vault().create(KeySpec("signing", None, lineage))
         row_d = reg.add_key(lineage, "signing", None, ref.backend, ref.ref, ref.version, lineage, "system")
     else:
-        row_d = dict(row)
+        row_d = row
     seed = backend_for(row_d["backend"]).derive(BackendRef(row_d["backend"], row_d["backend_ref"], row_d["key_version"]),
                           "markwright/deployment-signing/v1", 32)
     return Ed25519PrivateKey.from_private_bytes(seed)
@@ -246,8 +246,7 @@ def create_config(model_id: str, version: str, c: ConfigIn, p=Depends(require("r
         jsonschema.validate(params, adapter.params_schema())
     except jsonschema.ValidationError as e:
         raise HTTPException(422, f"scheme_params: {e.message}") from e
-    row = reg.db.execute("SELECT tokenizer_ref FROM model_versions WHERE model_id=? AND model_version=?",
-                         (model_id, version)).fetchone()
+    row = reg.get_model_version(model_id, version)
     if not row:
         raise HTTPException(404, "no such model version")
 
@@ -834,7 +833,7 @@ def healthz():
 def readyz():
     """Liveness is healthz; readiness proves the stores actually answer."""
     try:
-        STATE["registry"].db.execute("SELECT 1").fetchone()
+        STATE["registry"].db.execute("SELECT 1")
         n_schemes = len(schemes.available())
     except Exception as e:
         raise HTTPException(503, f"not ready: {e}") from e
@@ -850,10 +849,10 @@ def metrics():
     lines = [
         "# TYPE markwright_results_total counter",
     ]
-    for r in reg.db.execute("SELECT band, COUNT(*) n FROM results GROUP BY band"):
+    for r in reg.result_counts_by_band():
         lines.append(f'markwright_results_total{{band="{r["band"]}"}} {r["n"]}')
     lines.append("# TYPE markwright_configs gauge")
-    for r in reg.db.execute("SELECT status, COUNT(*) n FROM configs GROUP BY status"):
+    for r in reg.config_counts_by_status():
         lines.append(f'markwright_configs{{status="{r["status"]}"}} {r["n"]}')
     lines.append("# TYPE markwright_audit_entries gauge")
     lines.append(f"markwright_audit_entries {len(STATE['audit'].entries)}")

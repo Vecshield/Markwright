@@ -25,3 +25,23 @@ jobs:
       - run: uv pip install -e ".[dev,synthid]" -e packages/markwright-scheme-kgw
       # Tier 2 is offline-by-construction: token-id fixtures, no model weights.
       - run: .venv/bin/pytest -q -m "not slow and not network"
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: markwright
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: markwright
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U markwright"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv venv --python "3.12"
+      - run: uv pip install -e ".[dev,postgres]"
+      - run: .venv/bin/pytest -q tests/test_postgres.py -m ""

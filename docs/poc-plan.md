@@ -99,5 +99,5 @@ schemes · threshold custody · robustness sweeps · SDKs · Helm templates · R
       deliberately not propagated. Full API loop test incl. calibration on the
       bundled corpus; demo step 9 shows multi-scheme Bonferroni scanning.
 - [x] 8.3 OIDC bearer auth (authlib): JWKS validation, Keycloak-style role claims, highest-privilege mapping, break-glass policy
-- [ ] 8.4 Postgres RegistryStore behind the same methods
+- [x] 8.4 Postgres RegistryStore behind the same methods (SQLAlchemy Core port; plpgsql immutability trigger; CI service-container job)
 - [x] 8.5 Vault Transit (OpenBao) KeyBackend: in-boundary HKDF-Expand via transit/hmac; integration-tested against a real OpenBao container

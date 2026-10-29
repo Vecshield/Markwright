@@ -111,7 +111,7 @@ def test_full_control_plane_on_vault_transit(api, backend, monkeypatch):
     # drop the fixture's local-sealed signing identity so a fresh one is
     # created IN VAULT (a real deployment starts with its final backend)
     a.STATE["registry"].db.execute("DELETE FROM keys WHERE purpose='signing'")
-    a.STATE["registry"].db.execute("DELETE FROM audit_log")
+    a.STATE["registry"].db.execute("DELETE FROM audit_log")   # Database wrapper: same call shape
     a._init_audit()                        # deployment signing seed derived in Vault too
     config_id = bootstrap_parity_config(client)
     key_row = client.get(f"/v1/configs/{config_id}", headers=OP).json()
