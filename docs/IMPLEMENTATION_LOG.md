@@ -278,3 +278,48 @@ order: vLLM hook plugin → KGW adapter as the architecture test (design §12
   synthid config. Measured: marked kgw z≈14.8 right key / z≈−1.1 wrong key.
 - CI tier-2 installs the kgw package. Suite: 92 passed (11 new kgw/vllm tests).
 - Next: 8.3 OIDC → 8.4 Postgres → 8.5 Vault Transit (plan, Milestone C).
+
+### Phase 8.3 + 8.5 — OIDC auth + Vault Transit backend (commit: phase-8b)
+- **OIDC (8.3)**: `api/auth.py` `OIDCValidator` — authlib JWT validation
+  against the issuer's JWKS (discovery-fetched, injectable for tests);
+  iss/aud/exp enforced with 30s leeway; role claim is a dotted path
+  (default "roles", Keycloak "realm_access.roles"); token roles must contain
+  one of the four Markwright role names (exactly the realm roles our bundled
+  keycloak-realm.json defines); multiple roles → highest privilege.
+  Wiring: MARKWRIGHT_OIDC_ISSUER configures it; once set, STATIC DEV TOKENS
+  STOP WORKING. Break-glass per design §6.3: MARKWRIGHT_BREAK_GLASS=1
+  re-admits them, never in the provider profile, each use audited
+  (auth.login/break-glass-static-token). 11 tier-1 tests mint real RS256
+  tokens against a local JWKS: role mapping, every rejection path (expired,
+  wrong aud/iss, bad signature, no role, garbage), API integration incl.
+  created_by carrying the JWT principal, break-glass on/off/provider.
+- **Vault Transit (8.5)**: `keys/vault_transit.py` implements KeyBackend
+  against Vault/OpenBao transit. Root keys non-exportable (aes256-gcm96 —
+  hvac's client validation rejects the newer `hmac` type; Vault keeps a
+  distinct per-version HMAC key for any type); scheme material =
+  HKDF-Expand (RFC 5869 §2.3) with transit/hmac as the PRF, so DERIVATION
+  NEVER LEAVES THE BOUNDARY; rotate maps to transit rotation (old versions
+  keep verifying); revoke is registry-state only BY DESIGN (revoked keys must
+  keep verifying; Vault-side nothing to cut); destroy trims + deletes.
+  6 integration tests against a REAL OpenBao container (marker `network`,
+  skip when :8200 absent): determinism, info separation, multi-block expand,
+  relative version monotonicity (dev server keeps state between runs — tests
+  assert relative, not absolute, versions), non-exportability, destroy, and
+  the FULL control plane (parity loop + signed audit export) with every
+  secret in Vault. Container: `docker run -d --rm --name mw-openbao -p
+  8200:8200 -e BAO_DEV_ROOT_TOKEN_ID=dev-root openbao/openbao:2`.
+- **Backend dispatch fix (found by the transit test)**: derivation paths
+  called `vault()` (the deployment default) regardless of which backend a key
+  row RECORDS. New `backend_for(name)` resolves per record; `vault()` is only
+  where NEW keys are created (MARKWRIGHT_KEY_BACKEND env). Without this, a
+  backend migration would silently derive garbage from the wrong store.
+- compose: api service now passes through KEY_BACKEND / VAULT_ADDR+TOKEN /
+  OIDC_* env (onprem defaults point at the openbao service + Keycloak-style
+  role claim). pyproject: `oidc` extra (authlib); dev extra includes
+  authlib+hvac so tier-1 covers OIDC.
+- Suite: 103 passed tiers 1+2; +6 transit tests behind `network`.
+- **8.4 Postgres: deliberately deferred** to the next session — it is a
+  storage swap behind an already-narrow RegistryStore interface, but a
+  faithful port (SQLAlchemy + the immutability trigger + placeholders) is a
+  rewrite that deserves its own phase with a real PG container, not a
+  tail-of-session rush.

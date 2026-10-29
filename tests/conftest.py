@@ -152,6 +152,8 @@ def api(tmp_path, monkeypatch):
 
     a.STATE["registry"] = RegistryStore(tmp_path / "registry.sqlite")
     a.STATE["vault"] = LocalSealedVault(tmp_path / "vault.json", "test-passphrase")
+    a.STATE["backends"] = {}
+    a.STATE["oidc"] = None
     a.STATE["artifacts"] = LocalArtifactStore(tmp_path / "artifacts")
     a.STATE["null_models"] = {}
     a.STATE["tokenizer_hashes"] = {}

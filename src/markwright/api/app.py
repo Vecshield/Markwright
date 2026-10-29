@@ -64,11 +64,37 @@ ROLE_VERBS = {
 }
 
 
-def vault() -> LocalSealedVault:
+def _make_backend(name: str):
+    if name == "vault-transit":
+        from markwright.keys.vault_transit import VaultTransitBackend
+        return VaultTransitBackend()
+    if name == "local-sealed":
+        return LocalSealedVault(os.environ.get("MARKWRIGHT_VAULT", "markwright-vault.json"),
+                                os.environ.get("MARKWRIGHT_VAULT_PASSPHRASE", "dev-only-passphrase"))
+    raise RuntimeError(f"unknown key backend '{name}'")
+
+
+def vault():
+    """The deployment's DEFAULT KeyBackend — where NEW keys are created. Chosen
+    by configuration, not code (design §3): MARKWRIGHT_KEY_BACKEND =
+    local-sealed (default; air-gapped/dev) | vault-transit."""
     if STATE["vault"] is None:
-        STATE["vault"] = LocalSealedVault(os.environ.get("MARKWRIGHT_VAULT", "markwright-vault.json"),
-                                          os.environ.get("MARKWRIGHT_VAULT_PASSPHRASE", "dev-only-passphrase"))
+        STATE["vault"] = _make_backend(os.environ.get("MARKWRIGHT_KEY_BACKEND", "local-sealed"))
     return STATE["vault"]
+
+
+def backend_for(name: str):
+    """Resolve a key RECORD's backend. Every key row names the backend that
+    holds its bytes; derivation must go to that backend, not whatever the
+    deployment currently defaults to — otherwise a backend migration would
+    silently derive garbage from the wrong store."""
+    v = vault()
+    if v.name == name:
+        return v
+    cache = STATE.setdefault("backends", {})
+    if name not in cache:
+        cache[name] = _make_backend(name)
+    return cache[name]
 
 
 def _ensure_signing_key():
@@ -87,7 +113,7 @@ def _ensure_signing_key():
         row_d = reg.add_key(lineage, "signing", None, ref.backend, ref.ref, ref.version, lineage, "system")
     else:
         row_d = dict(row)
-    seed = vault().derive(BackendRef(row_d["backend"], row_d["backend_ref"], row_d["key_version"]),
+    seed = backend_for(row_d["backend"]).derive(BackendRef(row_d["backend"], row_d["backend_ref"], row_d["key_version"]),
                           "markwright/deployment-signing/v1", 32)
     return Ed25519PrivateKey.from_private_bytes(seed)
 
@@ -101,12 +127,44 @@ def _init_audit() -> None:
         db=STATE["registry"].db)
 
 
+def _init_oidc() -> None:
+    """OIDC bearer auth (design §6.3) when an issuer is configured; the static
+    dev tokens then stop working unless break-glass is explicitly enabled
+    (never in the provider profile), and each break-glass auth is audited."""
+    issuer = os.environ.get("MARKWRIGHT_OIDC_ISSUER")
+    if not issuer:
+        STATE["oidc"] = None
+        return
+    from markwright.api.auth import OIDCValidator
+    STATE["oidc"] = OIDCValidator(
+        issuer,
+        audience=os.environ.get("MARKWRIGHT_OIDC_AUDIENCE", "markwright"),
+        role_claim=os.environ.get("MARKWRIGHT_OIDC_ROLE_CLAIM", "roles"),
+    )
+
+
 _load_null_models()
 _init_audit()
+_init_oidc()
 
 
 def principal(authorization: str = Header(default="")) -> tuple[str, str]:
     tok = authorization.removeprefix("Bearer ").strip()
+    if STATE.get("oidc") is not None:
+        from markwright.api.auth import OIDCError
+        try:
+            return STATE["oidc"].principal(tok)
+        except OIDCError as e:
+            # break-glass: explicit, local, logged, unavailable in provider (design §6.3)
+            if (tok in STATE["tokens"]
+                    and os.environ.get("MARKWRIGHT_BREAK_GLASS") == "1"
+                    and PROFILE != "provider"):
+                name, role = STATE["tokens"][tok]
+                STATE["audit"].append({"principal": name, "role": role}, "auth.login",
+                                      {"kind": "principal", "id": name},
+                                      details={"method": "break-glass-static-token"})
+                return name, role
+            raise HTTPException(401, str(e)) from e
     if tok not in STATE["tokens"]:
         raise HTTPException(401, "unauthenticated")
     return STATE["tokens"][tok]
@@ -430,7 +488,7 @@ def rotate_key(key_id: str, p=Depends(require("key.write"))):
     if old["purpose"] != "generation" or old["state"] != "active":
         raise HTTPException(409, f"only active generation keys rotate (state={old['state']})")
 
-    ref = vault().rotate(BackendRef(old["backend"], old["backend_ref"], old["key_version"]))
+    ref = backend_for(old["backend"]).rotate(BackendRef(old["backend"], old["backend_ref"], old["key_version"]))
     now = datetime.now(UTC).isoformat()
     reg.set_key_state(key_id, "verify-only", generate_until=now)
     new_key_id = str(uuid.uuid4())
@@ -465,7 +523,7 @@ def revoke_key(key_id: str, body: RevokeIn, p=Depends(require("key.destroy"))):
         raise HTTPException(404)
     if old["state"] in ("revoked", "destroyed"):
         raise HTTPException(409, f"key already {old['state']}")
-    vault().revoke(BackendRef(old["backend"], old["backend_ref"], old["key_version"]), body.reason)
+    backend_for(old["backend"]).revoke(BackendRef(old["backend"], old["backend_ref"], old["key_version"]), body.reason)
     now = datetime.now(UTC).isoformat()
     row = reg.set_key_state(key_id, "revoked", generate_until=now, revoked_at=now,
                             revocation_reason=body.reason)
@@ -489,7 +547,7 @@ def destroy_key(key_id: str, p=Depends(require("key.destroy"))):
     if vu is None or vu > datetime.now(UTC).isoformat():
         raise HTTPException(409, "verify_until has not passed (null = verify forever); "
                                  "set a verify_until policy before destroying material")
-    vault().destroy(BackendRef(old["backend"], old["backend_ref"], old["key_version"]))
+    backend_for(old["backend"]).destroy(BackendRef(old["backend"], old["backend_ref"], old["key_version"]))
     row = reg.set_key_state(key_id, "destroyed")
     STATE["audit"].append({"principal": p[0], "role": p[1]}, "key.destroy",
                           {"kind": "key", "id": key_id})
@@ -574,7 +632,7 @@ def _key_handle(cfg: dict) -> KeyHandle:
         raise HTTPException(409, f"key {cfg['key_ref']} has purpose={key_row['purpose']}; "
                                  "only generation keys may mark or detect")
     try:
-        material = vault().derive(
+        material = backend_for(key_row["backend"]).derive(
             BackendRef(key_row["backend"], key_row["backend_ref"], key_row["key_version"]),
             f"markwright/root/{cfg['key_ref']}", 32)
     except PermissionError as e:   # destroyed key version

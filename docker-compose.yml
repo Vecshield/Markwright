@@ -9,8 +9,17 @@ services:
     environment:
       MARKWRIGHT_PROFILE: ${MARKWRIGHT_PROFILE:-dev}
       MARKWRIGHT_DB: ${MARKWRIGHT_DB:-/data/markwright.sqlite}
+      # key backend: local-sealed (dev/air-gapped) or vault-transit (onprem: the openbao service)
+      MARKWRIGHT_KEY_BACKEND: ${MARKWRIGHT_KEY_BACKEND:-local-sealed}
       MARKWRIGHT_VAULT: /data/vault.json
       MARKWRIGHT_VAULT_PASSPHRASE: ${MARKWRIGHT_VAULT_PASSPHRASE:-change-me}
+      MARKWRIGHT_VAULT_ADDR: ${MARKWRIGHT_VAULT_ADDR:-http://openbao:8200}
+      MARKWRIGHT_VAULT_TOKEN: ${MARKWRIGHT_VAULT_TOKEN:-}
+      # OIDC: setting the issuer DISABLES the static dev tokens
+      # (break-glass re-admits them: MARKWRIGHT_BREAK_GLASS=1; never in provider profile)
+      MARKWRIGHT_OIDC_ISSUER: ${MARKWRIGHT_OIDC_ISSUER:-}
+      MARKWRIGHT_OIDC_AUDIENCE: ${MARKWRIGHT_OIDC_AUDIENCE:-markwright}
+      MARKWRIGHT_OIDC_ROLE_CLAIM: ${MARKWRIGHT_OIDC_ROLE_CLAIM:-realm_access.roles}
       MARKWRIGHT_FPR_TARGET: ${MARKWRIGHT_FPR_TARGET:-1e-4}
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
     volumes: ["data:/data", "${MODELS_DIR:-./models}:/models:ro"]
