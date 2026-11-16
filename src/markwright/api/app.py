@@ -467,18 +467,40 @@ def demo_samples(_=Depends(require("verify"))):
     from markwright.calibration import load_corpus
 
     out: dict[str, Any] = {"samples": [], "notes": []}
+
+    def _decode(ids: list[int]) -> str | None:
+        """Corpus passages are stored pre-tokenized; turn them back into the
+        prose a person should actually read in the box."""
+        try:
+            from transformers import AutoTokenizer
+
+            return AutoTokenizer.from_pretrained("gpt2", local_files_only=True).decode(ids)
+        except Exception:
+            return None
+
     try:
         doc = next(iter(load_corpus("gutenberg-en-v1")))
+        full, short = list(doc.ids), list(doc.ids[:30])
+        full_text, short_text = _decode(full), _decode(short)
         out["samples"].append({
-            "id": "human", "label": "Human text (public-domain novel)",
-            "expect": "no evidence", "token_ids": list(doc.ids),
-            "why": "An unmarked passage. Expect no evidence, which never means a human wrote it.",
+            "id": "human", "label": "Human writing",
+            "expect": "no evidence",
+            "kind": "text" if full_text else "token_ids",
+            "text": full_text, "token_ids": full,
+            "why": "A passage from a public-domain novel, written long before language models. "
+                   "Expect no evidence, which never means a human wrote it.",
         })
         out["samples"].append({
-            "id": "short", "label": "Too short (30 tokens)",
-            "expect": "insufficient evidence", "token_ids": list(doc.ids[:30]),
-            "why": "Below the minimum length, so the check stops before computing any p-value.",
+            "id": "short", "label": "Too short to judge",
+            "expect": "insufficient evidence",
+            "kind": "text" if short_text else "token_ids",
+            "text": short_text, "token_ids": short,
+            "why": "Around 30 tokens, below the minimum length. The check stops before "
+                   "computing any p-value rather than guessing from too little text.",
         })
+        if full_text is None:
+            out["notes"].append("the gpt2 tokenizer is not in the local cache, so the samples "
+                                "are shown as token ids instead of text")
     except Exception as e:                                  # corpus missing
         out["notes"].append(f"no bundled corpus available: {e}")
 
@@ -503,9 +525,12 @@ def demo_samples(_=Depends(require("verify"))):
             ids = torch.cat([ids, torch.multinomial(torch.softmax(biased / 0.7, -1), 1)], dim=1)
         out["samples"].insert(0, {
             "id": "marked", "label": f"Marked by {cfg['model_id']} ({cfg['scheme_id']})",
-            "expect": "moderate or strong evidence", "token_ids": ids[0].tolist(),
-            "why": "Generated through this deployment's own key, so verification should "
-                   "find the mark for this configuration and no other.",
+            "expect": "moderate or strong evidence",
+            "kind": "token_ids", "text": None, "token_ids": ids[0].tolist(),
+            "why": "Generated through this deployment's own key, so verification should find "
+                   "the mark for this configuration and no other. It is shown as token ids "
+                   "because it comes from the watermark sampler alone, with no language model "
+                   "behind it; marked output from your real model is ordinary readable text.",
         })
     except Exception as e:
         out["notes"].append(f"marked sample unavailable: {e.__class__.__name__}: {e}")

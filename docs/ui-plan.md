@@ -65,6 +65,14 @@ texts, calibration notes, API descriptions, README):
   say so.
 - **Result permalink + copy button**: results are already stored; add
   GET-by-id and a copyable link so a verifier can hand a result to a reviewer.
+- [x] **Readable samples**: presets load decoded prose, not token ids. Token ids
+  appear only for the synthetic marked sample, which says why.
+- [x] **Charts over tables**: evidence scale with a marker, p-value on a log
+  axis against the target with the 95% interval drawn, token-length gauge, and
+  a per-configuration dot plot. Raw numbers move behind a disclosure; the
+  caveats and the target stay in flow.
+- [x] **Network failure** reads "cannot reach the API, start it with ..." rather
+  than a bare TypeError.
 - **File drop**: drag a .txt onto the box.
 
 ### B2. Onboarding flow

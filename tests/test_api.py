@@ -251,6 +251,11 @@ def test_demo_samples_are_generated_on_this_deployment(api):
     assert "marked" not in ids and any("no active" in n for n in body["notes"])
     short = next(s for s in body["samples"] if s["id"] == "short")
     assert len(short["token_ids"]) == 30 and short["expect"] == "insufficient evidence"
+    # readable prose wherever possible: a person should not be shown token ids
+    for s in body["samples"]:
+        assert s["kind"] in ("text", "token_ids")
+        if s["kind"] == "text":
+            assert s["text"] and not s["text"].startswith("[")
 
     # after onboarding, the marked sample appears and actually verifies
     bootstrap_parity_config(client)

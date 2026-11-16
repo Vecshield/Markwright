@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api, fmtFpr } from "../api";
+import { EvidenceScale } from "../charts";
 
 /** The screen that describes the system: what Markwright is, how a result is
  * produced, the honesty rules, and the live state of THIS deployment. */
@@ -34,12 +35,12 @@ export default function Overview({ onNavigate, role }: { onNavigate: (s: string)
           Every result lands on this scale. Colour shows how strong the evidence is; it never
           means pass or fail:
         </p>
-        <div className="evidence-scale" title="no/insufficient · weak · moderate · strong">
-          <span /><span /><span /><span />
-        </div>
-        <div className="row hint" style={{ justifyContent: "space-between", marginTop: 2 }}>
-          <span>no / insufficient</span><span>weak</span><span>moderate</span><span>strong</span>
-        </div>
+        <EvidenceScale band="moderate_evidence" />
+        <p className="hint">
+          The marker shows where an example result would land. "Not measured" sits apart from the
+          scale because it means the check stopped before producing a number, which is different
+          from measuring a low one.
+        </p>
       </div>
 
       <div className="card">
@@ -74,17 +75,29 @@ export default function Overview({ onNavigate, role }: { onNavigate: (s: string)
         </div>
         <div className="card">
           <h2>This deployment</h2>
-          <dl className="facts">
-            <dt>profile</dt><dd>{ready?.profile ?? "–"}</dd>
-            <dt>schemes installed</dt><dd>{ready?.schemes ?? "–"}</dd>
-            <dt>models / configs</dt><dd>{counts ? `${counts.models} / ${counts.configs}` : "–"}</dd>
-            <dt>calibrated configs</dt><dd>{ready?.calibrated_configs ?? "–"}</dd>
-            <dt>false-positive target</dt><dd>{policy ? `${fmtFpr(policy.fpr_target)} (${policy.fpr_target.toExponential(1)})` : "–"}</dd>
-            <dt>result retention</dt><dd>{policy ? `${policy.retention_days} days (metadata only)` : "–"}</dd>
-          </dl>
-          <dl className="facts" style={{ marginTop: 0 }}>
-            <dt>your role</dt><dd>{role ?? "–"}</dd>
-          </dl>
+          <div className="tiles">
+            <div className="tile">
+              <span className="num">{counts?.models ?? "–"}</span>
+              <span className="cap">models registered</span>
+            </div>
+            <div className="tile">
+              <span className="num">{ready?.calibrated_configs ?? "–"}<span
+                style={{ opacity: 0.45 }}>/{counts?.configs ?? "–"}</span></span>
+              <span className="cap">configurations calibrated</span>
+            </div>
+            <div className="tile">
+              <span className="num">{ready?.schemes ?? "–"}</span>
+              <span className="cap">schemes installed</span>
+            </div>
+            <div className="tile">
+              <span className="num">{policy ? fmtFpr(policy.fpr_target) : "–"}</span>
+              <span className="cap">false-positive target</span>
+            </div>
+          </div>
+          <p className="hint" style={{ marginTop: "0.8rem" }}>
+            Profile {ready?.profile ?? "–"}, signed in as <b>{role ?? "–"}</b>. Results keep
+            metadata for {policy?.retention_days ?? "–"} days; the text itself is never stored.
+          </p>
           <div className="row">
             <button onClick={() => onNavigate("verify")}>Verify a text</button>
             <button className="ghost" onClick={() => onNavigate("schemes")}>How schemes work</button>

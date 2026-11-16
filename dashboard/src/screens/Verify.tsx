@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { api, ApiError, DemoSample, fmtFpr, VerificationResult } from "../api";
+import { api, DemoSample, fmtFpr, VerificationResult } from "../api";
+import { CandidateChart, EvidenceScale, PValueAxis, TokenGauge } from "../charts";
 import { ErrorBanner } from "../components";
 
 // Full caveat sentences, shown verbatim and always.
@@ -22,11 +23,39 @@ function sci(x: number): string {
 
 function ResultCard({ res }: { res: VerificationResult }) {
   const best = res.candidates.find((c) => c.config_id === res.best_match) ?? null;
-  const ci = best?.ci_95;   // every p-value shows its interval
+  const ci = best?.ci_95 ?? null;
   return (
     <div className="card" data-testid="result-card">
       <span className={`band band-${res.band}`}>{res.band.replace(/_/g, " ").toUpperCase()}</span>
+      <EvidenceScale band={res.band} />
       <p className="band-reason">{res.band_reason}</p>
+
+      {best && (
+        <>
+          <h3 className="minih" style={{ marginTop: "1.1rem" }}>
+            How the evidence compares with this deployment's bar
+          </h3>
+          <PValueAxis p={best.p_value_adjusted} ci={ci} target={res.fpr_target} />
+          <p className="hint">
+            The point is the corrected p-value{ci ? ", the band around it the 95% interval" : ""}.
+            Further left means a human text of this length would score this high less often.
+          </p>
+        </>
+      )}
+
+      <h3 className="minih" style={{ marginTop: "1.1rem" }}>Length</h3>
+      <TokenGauge scored={res.scored_token_count} total={res.token_count}
+        minimum={best?.min_detectable_tokens ?? null} />
+
+      {res.candidates.length > 1 && (
+        <>
+          <h3 className="minih" style={{ marginTop: "1.1rem" }}>
+            Configurations scanned ({res.candidates.length})
+          </h3>
+          <CandidateChart rows={res.candidates} target={res.fpr_target} best={res.best_match} />
+        </>
+      )}
+
       <dl className="facts">
         {best && (
           <>
@@ -42,38 +71,37 @@ function ResultCard({ res }: { res: VerificationResult }) {
             <dd>{best.config_id.slice(0, 8)}… ({best.scheme_id}, key v{best.key_version})</dd>
           </>
         )}
-        {/* shown on every result, matched or not */}
         <dt>false-positive target</dt>
         <dd>{fmtFpr(res.fpr_target)} ({sci(res.fpr_target)}), set by the deployment</dd>
-        <dt>tokens</dt>
-        <dd>
-          {res.token_count} total, {res.scored_token_count} scored
-          {best?.min_detectable_tokens ? ` (minimum detectable: ${best.min_detectable_tokens})` : ""}
-        </dd>
         <dt>engine</dt>
         <dd>markwright {res.engine.markwright_version} ({res.engine.mode})</dd>
       </dl>
+
       {res.candidates.length > 0 && (
-        <table style={{ marginTop: "1rem" }}>
-          <thead>
-            <tr>
-              <th>configuration</th><th>scheme</th><th>statistic</th>
-              <th>p-value</th><th>corrected</th>
-            </tr>
-          </thead>
-          <tbody>
-            {res.candidates.map((c) => (
-              <tr key={c.config_id}>
-                <td>{c.config_id.slice(0, 8)}…</td>
-                <td>{c.scheme_id} (key v{c.key_version})</td>
-                <td>{c.statistic.name} = {c.statistic.value.toFixed(3)}</td>
-                <td>{sci(c.p_value)}</td>
-                <td>{sci(c.p_value_adjusted)}</td>
+        <details style={{ marginTop: "0.8rem" }}>
+          <summary className="hint">per-configuration numbers</summary>
+          <table style={{ marginTop: "0.5rem" }}>
+            <thead>
+              <tr>
+                <th>configuration</th><th>scheme</th><th>statistic</th>
+                <th>p-value</th><th>corrected</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {res.candidates.map((c) => (
+                <tr key={c.config_id}>
+                  <td>{c.config_id.slice(0, 8)}…</td>
+                  <td>{c.scheme_id} (key v{c.key_version})</td>
+                  <td>{c.statistic.name} = {c.statistic.value.toFixed(3)}</td>
+                  <td>{sci(c.p_value)}</td>
+                  <td>{sci(c.p_value_adjusted)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
       )}
+
       {/* plain elements, always in flow: nothing here can be collapsed */}
       <div className="caveats">
         <h3>Caveats, always shown</h3>
@@ -105,8 +133,14 @@ export default function Verify() {
     : (() => { try { return (JSON.parse(input) as number[]).length; } catch { return 0; } })();
 
   function loadSample(s: DemoSample) {
-    setMode("ids");
-    setInput(JSON.stringify(s.token_ids));
+    // Prefer readable text; token ids only when there is no prose to show.
+    if (s.kind === "text" && s.text) {
+      setMode("text");
+      setInput(s.text);
+    } else {
+      setMode("ids");
+      setInput(JSON.stringify(s.token_ids));
+    }
     setActive(s.id);
     setResult(null);
     setError(null);
@@ -130,6 +164,8 @@ export default function Verify() {
     }
   }
 
+  const active = samples.find((s) => s.id === activeSample) ?? null;
+
   return (
     <>
       {samples.length > 0 && (
@@ -140,15 +176,21 @@ export default function Verify() {
           </p>
           <div className="row">
             {samples.map((s) => (
-              <button key={s.id} className={activeSample === s.id ? "" : "ghost"} onClick={() => loadSample(s)}>
+              <button key={s.id} className={activeSample === s.id ? "" : "ghost"}
+                onClick={() => loadSample(s)}>
                 {s.label}
               </button>
             ))}
           </div>
-          {activeSample && (
-            <p className="hint" style={{ marginTop: "0.6rem" }}>
-              {samples.find((s) => s.id === activeSample)?.why} Expect:{" "}<b>{samples.find((s) => s.id === activeSample)?.expect}</b>.
-            </p>
+          {active && (
+            <>
+              <p className="hint" style={{ marginTop: "0.7rem" }}>
+                {active.why} Expect: <b>{active.expect}</b>.
+              </p>
+              {active.kind === "text" && active.text && (
+                <div className="sample-body">{active.text.slice(0, 400)}…</div>
+              )}
+            </>
           )}
           {sampleNotes.map((n) => <p key={n} className="hint">· {n}</p>)}
         </div>
@@ -185,14 +227,14 @@ export default function Verify() {
           </button>
           <span className="hint">
             {approxTokens > 0
-              ? `${approxTokens}${mode === "text" ? " tokens (estimated)" : " token ids"}` +
-                (approxTokens < 50 ? " — below the usual minimum, so expect insufficient evidence" : "")
+              ? `about ${approxTokens} ${mode === "text" ? "tokens" : "token ids"}` +
+                (approxTokens < 50 ? ", below the usual minimum, so expect insufficient evidence" : "")
               : "⌘/Ctrl + Enter to verify"}
           </span>
         </div>
       </div>
 
-      {error != null && <div className="card"><ErrorBanner error={error as ApiError} /></div>}
+      {error != null && <div className="card"><ErrorBanner error={error} /></div>}
       {result && <ResultCard res={result} />}
     </>
   );

@@ -84,6 +84,8 @@ export interface DemoSample {
   id: string;
   label: string;
   expect: string;
+  kind: "text" | "token_ids";
+  text: string | null;
   token_ids: number[];
   why: string;
 }
@@ -179,6 +181,17 @@ export function fmtFpr(fpr: number): string {
   return `1 in ${n.toLocaleString()}`;
 }
 
+function fetchOrThrow(method: string, path: string, body?: unknown): Promise<Response> {
+  return fetch(path, {
+    method,
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, detail: string) {
@@ -188,14 +201,15 @@ export class ApiError extends Error {
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method,
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetchOrThrow(method, path, body);
+  } catch {
+    // fetch() rejects with a bare TypeError when nothing answers; say what to do
+    throw new ApiError(0,
+      "Cannot reach the Markwright API. Start it with " +
+      "`.venv/bin/uvicorn markwright.api.app:app` (the dashboard proxies to :8000).");
+  }
   if (!res.ok) {
     let detail = await res.text();
     try {
