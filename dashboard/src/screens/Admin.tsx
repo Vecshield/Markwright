@@ -33,12 +33,13 @@ export default function Admin({ role }: { role: string }) {
       <div className="card">
         <h2>Policy</h2>
         <p className="hint">
-          The false-positive target is the deployment’s risk appetite: evidence bands are derived
-          from it, and verifiers may only <i>tighten</i> it per request. Changes are audited.
+          The false-positive target sets how often the deployment accepts a chance match:
+          evidence bands are derived from it, and a verifier can lower it for one request but
+          never raise it. Changes are audited.
         </p>
         {error && <div className="error">{error}</div>}
         <div className="row">
-          <label>fpr target{" "}
+          <label>false-positive target{" "}
             <select className="field" value={fpr} onChange={(e) => setFpr(e.target.value)}>
               {["1e-2", "1e-3", "1e-4", "1e-5"].map((v) => <option key={v}>{v}</option>)}
             </select>
@@ -63,16 +64,17 @@ export default function Admin({ role }: { role: string }) {
         </div>
         {policy && (
           <p className="hint" style={{ marginTop: "0.6rem" }}>
-            A tighter target needs a calibration that can resolve it — the bundled starter corpora
-            floor at ≈3e-3, so 1e-4 will cap bands at <i>weak</i> until you recalibrate on a
-            production-size corpus. The system will say so rather than overclaim.
+            A tighter target needs a calibration that can resolve it. The bundled starter corpora
+            resolve p-values down to about 3e-3, so a 1e-4 target caps every band at <i>weak</i>
+            until you recalibrate on a production-size corpus; the result card states the cap and
+            the reason.
           </p>
         )}
       </div>
 
       <div className="card">
         <h2>Verification activity</h2>
-        <p className="hint">Metadata only — no text is retrievable from here, by design.
+        <p className="hint">Metadata only; submitted text is never stored, so none can be shown.
           {role === "verifier" || role === "operator" ? " You see your own requests; auditors see the deployment's." : ""}
         </p>
         <table>

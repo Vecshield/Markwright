@@ -435,3 +435,32 @@ persisted. All plain React + fetch — still zero runtime deps beyond react.
   lifecycle actions and generation keys with role-gated Rotate/Revoke; Admin
   (Frost theme, admin role) shows the policy editor and the real audit trail
   of every click. Build clean (tsc + vite, 174 kB js).
+
+### UI plan + wording pass (commit: ui-plan-wording)
+- `docs/ui-plan.md`: Track A is a copy style guide (say it once; one corrective
+  statement per surface; no reader-facing jargon or abbreviations; numbers in
+  plain language first; no em dashes in product copy; the two required product
+  sentences stay). Track B is the flow roadmap ordered by value: Verify
+  (example inputs, live length feedback, scope filters, permalinks), Onboard
+  (resumable, inline validation, determinate progress), Registry
+  (search/filters, stale-calibration notice), Keys (validity timeline,
+  rotation preview), Admin (policy-change preview, audit download), the
+  Calibration screen (blocked on robustness sweeps), platform polish
+  (toasts, skeletons, prefers-color-scheme, a11y, Playwright smoke).
+- Wording audit applied across backend and UI. Backend: band texts and
+  band_for reasons rewritten in plain words ("the calibrated p-value is below
+  the false-positive target" instead of "p <= fpr_target"); the STRONG text no
+  longer repeats the not-proof clause the always-on caveat carries; the
+  required no-evidence sentence stays ("Absence of a mark is not evidence of
+  human authorship"); INSUFFICIENT explains "too predictable" alongside the
+  jargon; calibration notes and the FastAPI/CLI descriptions reworded; caveat
+  display texts rewritten in both CLI and dashboard (keys unchanged: wire
+  contract). UI: "fpr 1e-2" chip is now "false-positive target 1 in 100"
+  (fmtFpr rounds odds DOWN), pipeline steps say "length check" and "multi-scan
+  correction", the Overview rules card re-written without the gate jargon,
+  em dashes removed from product copy, README heavy spots rewritten (sample
+  output now matches the real CLI output), quickstart's "That is the point."
+  closer replaced with the fact it gestured at.
+- Tests: all asserted substrings kept on purpose ("not evidence of human
+  authorship", "calibration resolves p down to", "expected by chance");
+  103 passed, dashboard build clean.

@@ -254,7 +254,7 @@ class SynthIDTextAdapter:
         return CalibrationReport(
             config_id="", null_corpus_ids=[], null_model=null_model,
             min_detectable_tokens=mdl, robustness=robustness, fpr_target=fpr_target,
-            notes=["analytic p assumes token independence; use calibrated p"],
+            notes=["the analytic p-value assumes tokens are independent, which real text violates; trust the calibrated p-value"],
         )
 
     def export_detector(self, params: dict, key: KeyHandle) -> Detector | None:

@@ -50,7 +50,7 @@ export default function Registry({ role }: { role: string }) {
       {error && <div className="error">{error}</div>}
       {models.length === 0 && (
         <div className="card hint">
-          No models registered yet — use the Onboard wizard, the CLI
+          No models registered yet. Use the Onboard wizard, the CLI
           (<code>markwright model add …</code>) or the API.
         </div>
       )}
@@ -104,7 +104,7 @@ function RowWithDrawer({ c, open, onToggle, runs, corpora, canOperate, busy, act
         <td><span className={`status-chip ${c.status}`}>{c.status}</span></td>
         <td>{c.calibration_ref === undefined ? "—" : c.calibration_ref ? "accepted" : "none"}</td>
         <td>{c.verification_defaults?.min_detectable_tokens ?? "–"}</td>
-        <td>{c.detector_ref ? "published (spoofable!)" : "private key"}</td>
+        <td>{c.detector_ref ? "published (can be forged)" : "private key"}</td>
       </tr>
       {open && (
         <tr className="drawer">
@@ -114,7 +114,7 @@ function RowWithDrawer({ c, open, onToggle, runs, corpora, canOperate, busy, act
                 <dt>params</dt><dd>{JSON.stringify(c.scheme_params)}</dd>
                 <dt>tokenizer</dt><dd>{c.tokenizer_ref} {c.verification_defaults?.tokenizer_hash
                   ? `(hash ${String(c.verification_defaults.tokenizer_hash).slice(0, 10)}…)` : "(hash unrecorded)"}</dd>
-                <dt>key</dt><dd>{c.key_ref?.slice(0, 13)}… (handle; bytes live in the backend)</dd>
+                <dt>key</dt><dd>{c.key_ref?.slice(0, 13)}… (reference; the secret stays in the backend)</dd>
                 <dt>runs</dt><dd>{runs.length ? runs.map((r) =>
                   `${r.run_id.slice(0, 8)}…(${r.status})`).join(", ") : "none"}</dd>
               </dl>
@@ -147,7 +147,7 @@ function RowWithDrawer({ c, open, onToggle, runs, corpora, canOperate, busy, act
                 {c.status === "active" && (
                   <button className="ghost" disabled={busy}
                     onClick={() => act(() => api.transition(c.config_id, "deprecate"))}>
-                    Deprecate (keeps verifying)
+                    Deprecate (stops marking only)
                   </button>
                 )}
                 {c.status === "deprecated" && (

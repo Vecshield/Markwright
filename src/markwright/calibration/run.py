@@ -64,14 +64,15 @@ def run_calibration(
     null_model = fit_null_by_length(detections, corpus_ids=null_corpus_ids)
     nm = NullModel.from_dict(null_model)
     notes = [
-        "null-corpus-only run: no marked corpus, so min_detectable_tokens and the "
-        "robustness sweep are absent (v1 calibration job)",
-        "analytic p assumes token independence; use calibrated p",
+        "this run used a null corpus only: without a marked corpus there is no "
+        "minimum-detectable-length estimate and no robustness sweep yet",
+        "the analytic p-value assumes tokens are independent, which real text "
+        "violates; trust the calibrated p-value",
     ]
     if nm.quality != "standard":
         notes.insert(0, (
-            f"PROVISIONAL: {n_docs} null docs; resolution floor "
-            f"{nm.resolution_floor():.1e} — bands finer than this are refused"
+            f"PROVISIONAL: fitted on {n_docs} null documents; the smallest resolvable "
+            f"p-value is {nm.resolution_floor():.1e}, and bands finer than this are refused"
         ))
 
     return {

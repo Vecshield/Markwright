@@ -12,7 +12,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
-app = typer.Typer(help="Markwright: manage LLM text watermarks. Results are probabilistic evidence, never a verdict.")
+app = typer.Typer(help="Markwright: manage LLM text watermarks. Results are calibrated statistical evidence with an explicit false-positive target.")
 model_app = typer.Typer(help="Register models and versions")
 config_app = typer.Typer(help="Scheme configurations")
 calibrate_app = typer.Typer(help="Fit and accept null models (required before activation)")
@@ -32,15 +32,15 @@ app.add_typer(bundle_app, name="bundle")
 console = Console()
 
 CAVEAT_TEXT = {
-    "result_is_probabilistic": "result is probabilistic, not proof",
-    "short_text": "text is short; evidence is limited",
-    "low_entropy": "little free choice in this text (code, lists, quotes); marks are weak here",
-    "possible_paraphrase": "paraphrase or editing can remove marks; a positive may be partial",
-    "multiple_candidates": "several configurations were scanned; p-value was corrected for that",
+    "result_is_probabilistic": "statistical evidence; some human texts score this high by chance, at the rate shown",
+    "short_text": "the text is short, so the evidence is limited",
+    "low_entropy": "this text leaves the model little free choice (code, lists, quotes), so marks are weak in it",
+    "possible_paraphrase": "paraphrase or editing can remove marks; a positive may cover only part of the text",
+    "multiple_candidates": "several configurations were scanned and the p-value was corrected for that",
     "historical_key": "matched a rotated or revoked key",
-    "spoofing_not_excluded": "this configuration's detector is public; the mark could have been forged",
+    "spoofing_not_excluded": "this configuration's detector is public, so the mark could have been forged",
     "tokenizer_uncertain": "tokenizer unavailable or mismatched; this configuration was not scored",
-    "provisional_calibration": "calibrated on a small starter corpus; bands are capped at its resolution",
+    "provisional_calibration": "calibrated on a small starter corpus; evidence bands are capped at its resolution",
 }
 
 
@@ -278,7 +278,7 @@ def verify(text: str = typer.Option(None, "--text"), file: Path = typer.Option(N
            offline: bool = typer.Option(False, "--offline", help="verify against a bundle, no server"),
            bundle: Path = typer.Option(None, "--bundle", help="bundle from `markwright bundle export`"),
            as_json: bool = typer.Option(False, "--json")):
-    """Verify a text against registered configurations. Prints evidence, not a verdict."""
+    """Verify a text against registered configurations and print the evidence."""
     if file:
         text = file.read_text()
     if not text:
@@ -310,8 +310,8 @@ def _print_result(res: dict) -> None:
     lines = [f"[bold]Result: {band}[/bold]"]
     if best:
         ci = best.get("ci_95")
-        ci_s = f"  (95% interval {ci[0]:.1e} - {ci[1]:.1e})" if ci else ""
-        lines += [f"  calibrated p-value    {best['p_value_adjusted']:.1e}{ci_s}, adjusted for {len(res['candidates'])} config(s) scanned",
+        ci_s = f"  (95% interval {ci[0]:.1e} to {ci[1]:.1e})" if ci else ""
+        lines += [f"  calibrated p-value    {best['p_value_adjusted']:.1e}{ci_s}, corrected for {len(res['candidates'])} configuration(s) scanned",
                   f"  config                {best['config_id']}  ({best['scheme_id']}, key v{best['key_version']})"]
     lines += [f"  false-positive target {res['fpr_target']:.1e}  (deployment policy)",
               f"  tokens                {res['token_count']} total, {res['scored_token_count']} scored"

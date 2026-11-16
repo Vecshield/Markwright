@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError, KeyRow } from "../api";
 
-/** Key lifecycle: metadata only — the registry stores handles, the backend
- * holds bytes. Rotation keeps old versions verifying forever; revocation
- * stops marking instantly and flags every later match historical_key. */
+/** Key lifecycle, metadata only: the registry stores references and the
+ * backend holds the bytes. Rotation keeps old versions verifying; revocation
+ * stops marking at once and flags every later match. */
 export default function Keys({ role }: { role: string }) {
   const [keys, setKeys] = useState<KeyRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +14,7 @@ export default function Keys({ role }: { role: string }) {
   const refresh = useCallback(() => {
     api.keys().then(setKeys).catch((e) =>
       setError(e instanceof ApiError && e.status === 403
-        ? "The verifier role cannot read key metadata — switch to operator, auditor or admin."
+        ? "The verifier role cannot read key metadata. Switch to operator, auditor or admin."
         : String(e)));
   }, []);
   useEffect(refresh, [refresh]);
@@ -40,10 +40,11 @@ export default function Keys({ role }: { role: string }) {
       <div className="card">
         <h2>Keys</h2>
         <p className="hint">
-          Every row is a handle — secret bytes never leave the key backend. A rotated key moves to
-          <i> verify-only</i> and keeps verifying forever; a revoked key stops marking immediately
-          and every later match carries <code>historical_key</code> with the recorded reason.
-          Generation and signing identities are separate records and can never be mixed.
+          Each row is a reference to a key; the secret bytes stay in the key backend. A rotated
+          key moves to <i>verify-only</i> and keeps verifying old text indefinitely. A revoked key
+          stops marking at once, and every later match carries <code>historical_key</code> with
+          the recorded reason. Generation keys and signing identities are separate records and the
+          server refuses to mix them.
         </p>
         {error && <div className="error">{error}</div>}
         {notice && <p className="okline">✓ {notice}</p>}
@@ -72,14 +73,14 @@ export default function Keys({ role }: { role: string }) {
                       <span className="row" style={{ margin: 0 }}>
                         <button className="ghost" disabled={busy || !(role === "operator" || role === "admin")}
                           onClick={() => act(() => api.rotateKey(k.key_id),
-                            "rotated — old key verifies forever; configs moved to a new version")}>
+                            "rotated: the old key keeps verifying and configs moved to a new version")}>
                           Rotate
                         </button>
                         <button className="ghost" disabled={busy || role !== "admin"}
                           title="admin only"
                           onClick={() => {
                             const reason = window.prompt("Revocation reason (recorded in the audit log and on every later match):");
-                            if (reason) void act(() => api.revokeKey(k.key_id, reason), "revoked — marking stopped, verification continues flagged");
+                            if (reason) void act(() => api.revokeKey(k.key_id, reason), "revoked: marking stopped, verification continues with the historical_key caveat");
                           }}>
                           Revoke…
                         </button>
@@ -91,7 +92,7 @@ export default function Keys({ role }: { role: string }) {
             </tbody>
           </table>
         ))}
-        {keys.length === 0 && !error && <p className="hint">No keys yet — onboarding a model creates its first lineage.</p>}
+        {keys.length === 0 && !error && <p className="hint">No keys yet. Onboarding a model creates its first lineage.</p>}
       </div>
     </>
   );

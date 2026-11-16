@@ -4,15 +4,15 @@ import { api, VerificationResult } from "../api";
 
 // Full caveat sentences (same texts the CLI prints) — shown verbatim, always.
 const CAVEAT_TEXT: Record<string, string> = {
-  result_is_probabilistic: "result is probabilistic, not proof",
-  short_text: "text is short; evidence is limited",
-  low_entropy: "little free choice in this text (code, lists, quotes); marks are weak here",
-  possible_paraphrase: "paraphrase or editing can remove marks; a positive may be partial",
-  multiple_candidates: "several configurations were scanned; p-value was corrected for that",
+  result_is_probabilistic: "statistical evidence; some human texts score this high by chance, at the rate shown",
+  short_text: "the text is short, so the evidence is limited",
+  low_entropy: "this text leaves the model little free choice (code, lists, quotes), so marks are weak in it",
+  possible_paraphrase: "paraphrase or editing can remove marks; a positive may cover only part of the text",
+  multiple_candidates: "several configurations were scanned and the p-value was corrected for that",
   historical_key: "matched a rotated or revoked key",
-  spoofing_not_excluded: "this configuration's detector is public; the mark could have been forged",
+  spoofing_not_excluded: "this configuration's detector is public, so the mark could have been forged",
   tokenizer_uncertain: "tokenizer unavailable or mismatched; this configuration was not scored",
-  provisional_calibration: "calibrated on a small starter corpus; bands are capped at its resolution",
+  provisional_calibration: "calibrated on a small starter corpus; evidence bands are capped at its resolution",
 };
 
 function sci(x: number): string {
@@ -33,7 +33,7 @@ function ResultCard({ res }: { res: VerificationResult }) {
             <dt>calibrated p-value</dt>
             <dd>
               {sci(best.p_value_adjusted)}
-              {ci ? ` (95% interval ${sci(ci[0])} – ${sci(ci[1])})` : ""}
+              {ci ? ` (95% interval ${sci(ci[0])} to ${sci(ci[1])})` : ""}
               {res.candidates.length > 1 ? `, adjusted for ${res.candidates.length} configs scanned` : ""}
             </dd>
             <dt>matched config</dt>
@@ -84,7 +84,7 @@ function ResultCard({ res }: { res: VerificationResult }) {
       )}
       {/* always rendered, never collapsible (design §8.3) */}
       <div className="caveats">
-        <h3>Caveats — always shown</h3>
+        <h3>Caveats, always shown</h3>
         <ul>
           {res.caveats.map((c) => (
             <li key={c}>{CAVEAT_TEXT[c] ?? c}</li>
@@ -129,8 +129,8 @@ export default function Verify() {
           onChange={(e) => setInput(e.target.value)}
           placeholder={
             mode === "text"
-              ? "Paste the text to verify. It is never stored — only a salted digest and the statistics."
-              : "Paste token ids as a JSON array, e.g. [312, 9981, …] (no tokenizer needed)"
+              ? "Paste the text to verify. It is never stored; the server keeps only a salted digest and the statistics."
+              : "Paste token ids as a JSON array, for example [312, 9981, ...]; this path needs no tokenizer"
           }
         />
         <div className="row">
@@ -141,14 +141,14 @@ export default function Verify() {
             <input type="radio" checked={mode === "ids"} onChange={() => setMode("ids")} /> token ids (JSON)
           </label>
           <label>
-            fpr target{" "}
+            false-positive target{" "}
             <input
               style={{ width: "6rem", font: "inherit" }}
-              placeholder="policy"
+              placeholder="deployment value"
               value={fpr}
               onChange={(e) => setFpr(e.target.value)}
             />{" "}
-            <span className="hint">(may only tighten)</span>
+            <span className="hint">(can only lower the deployment value)</span>
           </label>
           <button onClick={run} disabled={busy || !input.trim()}>
             {busy ? "verifying…" : "Verify"}

@@ -33,21 +33,22 @@ def band_for(
     must not claim precision its null sample cannot support (POC plan 1.3).
     """
     if not gate_ok or p_adjusted is None:
-        return Band.INSUFFICIENT, "text too short or too low-entropy to test"
+        return Band.INSUFFICIENT, "the text is too short or too predictable to test"
     capped = resolution_floor is not None and fpr_target < resolution_floor
     if capped and p_adjusted <= WEAK_CEILING:
         return Band.WEAK, (
             f"calibration resolves p down to {resolution_floor:.1e}, coarser than the "
-            f"fpr_target ({fpr_target:.1e}); evidence capped at weak until recalibrated "
-            "on a larger null corpus"
+            f"false-positive target ({fpr_target:.1e}); evidence is capped at weak until "
+            "recalibration on a larger null corpus"
         )
     if p_adjusted <= fpr_target / 100:
-        return Band.STRONG, f"p <= fpr_target/100 ({fpr_target / 100:.1e})"
+        return Band.STRONG, ("the calibrated p-value is below one hundredth of the "
+                             f"false-positive target ({fpr_target / 100:.1e})")
     if p_adjusted <= fpr_target:
-        return Band.MODERATE, f"p <= fpr_target ({fpr_target:.1e})"
+        return Band.MODERATE, f"the calibrated p-value is below the false-positive target ({fpr_target:.1e})"
     if p_adjusted <= WEAK_CEILING:
-        return Band.WEAK, f"fpr_target < p <= {WEAK_CEILING}"
-    return Band.NONE, f"p > {WEAK_CEILING}"
+        return Band.WEAK, f"the calibrated p-value is above the false-positive target but below {WEAK_CEILING}"
+    return Band.NONE, f"the calibrated p-value is above {WEAK_CEILING}"
 
 
 def one_in_n(p: float) -> str:
@@ -64,10 +65,14 @@ def one_in_n(p: float) -> str:
 
 
 PLAIN_TEXT = {
-    Band.STRONG: "Strong statistical evidence of this watermark. A human-written text of this length "
-                 "would score this high {rarity}. This is not proof, and not a statement about authorship.",
+    Band.STRONG: "Strong statistical evidence of this watermark. A human-written text of this "
+                 "length would score this high {rarity}.",
     Band.MODERATE: "Evidence consistent with this watermark at the configured false-positive rate.",
-    Band.WEAK: "Weak evidence, below this deployment's bar. Do not act on this alone.",
-    Band.NONE: "No evidence of this watermark. This does not mean the text is human-written.",
-    Band.INSUFFICIENT: "Too short or too low-entropy to test (this model needs about {min_tokens} tokens).",
+    Band.WEAK: "Weak evidence, below this deployment's false-positive target. Too weak to act on alone.",
+    # Required product sentence (design §7.4): every no-evidence result states
+    # that absence of a mark is not evidence of human authorship.
+    Band.NONE: "No evidence of this watermark. Absence of a mark is not evidence of human "
+               "authorship: unmarked models, paraphrase and translation all produce this result.",
+    Band.INSUFFICIENT: "Too short, or too predictable (code, lists, quotes), to test. This "
+                       "configuration needs about {min_tokens} tokens of ordinary text.",
 }

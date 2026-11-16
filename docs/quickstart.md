@@ -18,5 +18,5 @@
    marked tokens instead — no LM required.)
 6. `markwright verify --text "<the generated text>"` → a band, a calibrated p-value
    with its interval, the FPR target, caveats.
-7. Try `markwright verify --text "Short sentence."` → `INSUFFICIENT EVIDENCE`,
-   no p-value. That is the point.
+7. Try `markwright verify --text "Short sentence."`: it returns `INSUFFICIENT
+   EVIDENCE` with no p-value, because short input never produces one.

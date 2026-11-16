@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { api } from "../api";
+import { api, fmtFpr } from "../api";
 
 /** The screen that describes the system: what Markwright is, how a result is
  * produced, the honesty rules, and the live state of THIS deployment. */
@@ -23,14 +23,16 @@ export default function Overview({ onNavigate }: { onNavigate: (s: string) => vo
         <h2>What this is</h2>
         <p>
           Markwright is a control plane for LLM text watermarking. It keeps a versioned registry
-          binding each model version to a published watermarking scheme and its exact parameters,
-          holds the generation keys behind a vault boundary with rotation and revocation, and
-          verifies text — returning <b>calibrated statistical evidence</b>, never an “AI: yes/no”
-          verdict. It wraps published schemes (SynthID-Text, KGW) and invents no algorithm and no
-          cryptography.
+          that binds each model version to a published watermarking scheme and its exact
+          parameters, holds the generation keys behind a vault boundary with rotation and
+          revocation, and verifies text. A verification returns <b>calibrated statistical
+          evidence</b>; deciding whether a text was written by AI is outside what any watermark
+          check can do. The schemes themselves are published work (SynthID-Text, KGW); Markwright
+          adds no algorithm and no cryptography of its own.
         </p>
         <p className="hint">
-          Evidence is an ordered single-hue scale — intensity, not judgment:
+          Every result lands on this scale. Colour shows how strong the evidence is; it never
+          means pass or fail:
         </p>
         <div className="evidence-scale" title="no/insufficient · weak · moderate · strong">
           <span /><span /><span /><span />
@@ -43,7 +45,7 @@ export default function Overview({ onNavigate }: { onNavigate: (s: string) => vo
       <div className="card">
         <h2>How a result is produced</h2>
         <div className="pipeline">
-          {["gate", "candidates", "detect", "calibrate", "Bonferroni", "band"].map((s, i) => (
+          {["length check", "candidates", "detect", "calibrate", "multi-scan correction", "band"].map((s, i) => (
             <span key={s} style={{ display: "contents" }}>
               {i > 0 && <span className="arrow">→</span>}
               <span className="step">{s}</span>
@@ -51,23 +53,24 @@ export default function Overview({ onNavigate }: { onNavigate: (s: string) => vo
           ))}
         </div>
         <p className="hint">
-          Short or low-entropy text is <i>gated</i> before any statistic exists. Every candidate
-          configuration is scored by its scheme adapter, mapped through a null model fitted on
-          human text (empirical CDF + generalised-Pareto tail), corrected for how many configs were
-          scanned, and only then banded against the deployment’s false-positive target. A
-          calibration that cannot resolve that target caps the band and says so.
+          Text that is too short or too predictable is rejected before any statistic is computed.
+          Each candidate configuration then scores the text with its scheme, the score is mapped
+          through a null model fitted on human text, the p-value is corrected for how many
+          configurations were scanned, and the corrected value is banded against the deployment's
+          false-positive target. When the calibration cannot resolve that target, the band is
+          capped and the result says why.
         </p>
       </div>
 
       <div className="grid2">
         <div className="card">
-          <h2>Honesty rules (enforced in code)</h2>
-          <div className="rule"><b>No booleans.</b> There is no is_ai field anywhere; bool(result) raises.</div>
-          <div className="rule"><b>The gate precedes the statistic.</b> Insufficient evidence has no p-value, ever.</div>
-          <div className="rule"><b>Intervals always.</b> A p-value is never shown without its 95% interval and FPR target.</div>
-          <div className="rule"><b>Caveats cannot be collapsed.</b> Including: no evidence is not evidence of human authorship.</div>
-          <div className="rule"><b>Text is never stored.</b> Salted digest and statistics only.</div>
-          <div className="rule"><b>Keys never leave the backend.</b> The registry stores handles; old keys verify forever.</div>
+          <h2>Reporting rules (each has a test)</h2>
+          <div className="rule"><b>No yes/no answers.</b> There is no is_ai field anywhere, and code that treats a result as true/false raises an error.</div>
+          <div className="rule"><b>Short text is rejected first.</b> An insufficient-evidence result has no p-value at all.</div>
+          <div className="rule"><b>Intervals always.</b> A p-value always appears with its 95% interval and the false-positive target.</div>
+          <div className="rule"><b>Caveats always show.</b> Every no-evidence result states that absence of a mark says nothing about human authorship.</div>
+          <div className="rule"><b>Text is never stored.</b> Only a salted digest and the statistics.</div>
+          <div className="rule"><b>Keys stay in the backend.</b> The registry stores references; rotated keys keep verifying old text.</div>
         </div>
         <div className="card">
           <h2>This deployment</h2>
@@ -76,7 +79,7 @@ export default function Overview({ onNavigate }: { onNavigate: (s: string) => vo
             <dt>schemes installed</dt><dd>{ready?.schemes ?? "–"}</dd>
             <dt>models / configs</dt><dd>{counts ? `${counts.models} / ${counts.configs}` : "–"}</dd>
             <dt>calibrated configs</dt><dd>{ready?.calibrated_configs ?? "–"}</dd>
-            <dt>fpr target</dt><dd>{policy ? policy.fpr_target.toExponential(1) : "–"}</dd>
+            <dt>false-positive target</dt><dd>{policy ? `${fmtFpr(policy.fpr_target)} (${policy.fpr_target.toExponential(1)})` : "–"}</dd>
             <dt>result retention</dt><dd>{policy ? `${policy.retention_days} days (metadata only)` : "–"}</dd>
           </dl>
           <div className="row">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { api, getTheme, getToken, roleOf, setTheme, setToken } from "./api";
+import { api, fmtFpr, getTheme, getToken, roleOf, setTheme, setToken } from "./api";
 import Admin from "./screens/Admin";
 import Keys from "./screens/Keys";
 import Onboard from "./screens/Onboard";
@@ -48,7 +48,11 @@ export default function App() {
           ))}
         </nav>
         <div className="spacer" />
-        {fpr !== null && <span className="fprchip">fpr {fpr.toExponential(0)}</span>}
+        {fpr !== null && (
+          <span className="fprchip" title={`deployment false-positive target: ${fpr.toExponential(1)}`}>
+            false-positive target {fmtFpr(fpr)}
+          </span>
+        )}
         <select
           value={token}
           onChange={(e) => {
@@ -80,11 +84,11 @@ export default function App() {
         {screen === "admin" && <Admin role={role} />}
       </main>
       <footer>
-        A result is statistical evidence about one registered watermark configuration — never a
-        statement that a person or a machine wrote the text. “No evidence” is not “human-written”:
-        unmarked models, paraphrase and translation all produce it. Strong evidence is not proof; at
-        the false-positive target shown with every result, some positives are chance. Submitted text
-        is never stored. See docs/limitations.md for the full responsible-use text.
+        A result measures the evidence for one registered watermark configuration. It cannot say
+        whether a person or a machine wrote the text: unmarked models, paraphrase and translation
+        all produce "no evidence", and at the false-positive target shown with every result, some
+        positives are chance. Submitted text is never stored. The full responsible-use text is in
+        docs/limitations.md.
       </footer>
     </>
   );

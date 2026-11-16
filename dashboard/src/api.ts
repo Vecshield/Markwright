@@ -146,6 +146,13 @@ export function setTheme(t: string): void {
   document.documentElement.setAttribute("data-theme", t);
 }
 
+/** "1 in 100" phrasing for a false-positive target; rounds the odds DOWN so
+ * the display never overstates rarity. */
+export function fmtFpr(fpr: number): string {
+  const n = Math.floor(1 / fpr);
+  return `1 in ${n.toLocaleString()}`;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, detail: string) {

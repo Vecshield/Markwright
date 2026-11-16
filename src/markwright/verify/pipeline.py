@@ -92,7 +92,7 @@ def verify(
     is_ids = not isinstance(text, str)
 
     if not candidates:
-        return Result(_payload(now, 0, 0, fpr_target, Band.INSUFFICIENT, "no candidate configurations",
+        return Result(_payload(now, 0, 0, fpr_target, Band.INSUFFICIENT, "no configurations to scan: none are both active and calibrated",
                                None, [], sorted(caveats), requested_by, _digest(text, deployment_salt), mode))
 
     k = len(candidates)

@@ -50,7 +50,7 @@ export default function Onboard({ role }: { role: string }) {
         <h2>Onboard a model</h2>
         {!canOperate && (
           <p className="hint">
-            Onboarding needs the operator or admin role — switch roles in the header. The wizard
+            Onboarding needs the operator or admin role; switch roles in the header. The wizard
             stays visible so you can see what operators do.
           </p>
         )}
@@ -65,10 +65,10 @@ export default function Onboard({ role }: { role: string }) {
 
         {step === 0 && (
           <>
-            <p className="hint">A model is a registry slug plus a version with its tokenizer. The
-              tokenizer matters: a detector run with the wrong tokenizer produces confident
-              nonsense, so Markwright records a tokenizer hash at calibration and hard-fails on
-              mismatch.</p>
+            <p className="hint">A model is a registry slug plus a version and its tokenizer. The
+              tokenizer matters: a detector running with the wrong one produces confident nonsense,
+              so Markwright records a tokenizer fingerprint at calibration and refuses to score on
+              a mismatch.</p>
             <div className="row">
               <label>model id <input type="text" placeholder="acme-llm" value={modelId}
                 onChange={(e) => setModelId(e.target.value)} /></label>
@@ -89,7 +89,7 @@ export default function Onboard({ role }: { role: string }) {
 
         {step === 1 && (
           <>
-            <p className="hint">Schemes are plugins; each card is honest about its trade-offs.</p>
+            <p className="hint">Each scheme states its trade-offs before you pick it.</p>
             {schemes.map((s) => (
               <div key={s.scheme_id} className="row" style={{ alignItems: "baseline" }}>
                 <label>
@@ -120,10 +120,10 @@ export default function Onboard({ role }: { role: string }) {
         {step === 2 && cfg && (
           <>
             <p className="okline">✓ config {cfg.config_id.slice(0, 8)}… created (status: {cfg.status})</p>
-            <p className="okline">✓ key lineage {cfg.key_ref?.slice(0, 8)}… created in the key backend
-              — the registry stores the handle, never the bytes</p>
-            <p className="hint">Next: fit a null model on human text. Without an accepted
-              calibration this config cannot be activated — that rule is enforced server-side.</p>
+            <p className="okline">✓ key lineage {cfg.key_ref?.slice(0, 8)}… created in the key
+              backend; the registry stores only a reference to it</p>
+            <p className="hint">Next, fit a null model on human text. The server refuses to
+              activate a configuration without an accepted calibration.</p>
             <div className="row">
               <button disabled={busy} onClick={() => setStep(3)}>Continue to calibration</button>
             </div>
@@ -133,10 +133,10 @@ export default function Onboard({ role }: { role: string }) {
         {step === 3 && cfg && (
           <>
             <p className="hint">
-              The bundled starter corpora are small and single-domain; the null model they produce
-              is <b>provisional</b> and every result will carry that caveat, with bands capped at
-              the calibration’s resolution floor. Production deployments calibrate on their own
-              domain corpora.
+              The bundled starter corpora are small and cover one domain, so the null model they
+              produce is <b>provisional</b>: every result will say so, and evidence bands are
+              capped at what this calibration can resolve. Production deployments calibrate on
+              their own domain corpora.
             </p>
             <div className="row">
               <label>null corpus{" "}
@@ -151,8 +151,8 @@ export default function Onboard({ role }: { role: string }) {
             </div>
             {run && (
               <>
-                <p className="okline">✓ run {run.run_id.slice(0, 8)}… — quality {run.quality},{" "}
-                  {run.n_docs} docs, resolution floor {run.resolution_floor.toExponential(1)}</p>
+                <p className="okline">✓ run {run.run_id.slice(0, 8)}…: quality {run.quality},{" "}
+                  {run.n_docs} documents, smallest resolvable p-value {run.resolution_floor.toExponential(1)}</p>
                 {run.notes.map((n) => <p key={n} className="hint">· {n}</p>)}
                 <div className="row">
                   <button disabled={busy || !canOperate} onClick={() => guard(async () => {
@@ -167,8 +167,8 @@ export default function Onboard({ role }: { role: string }) {
 
         {step === 4 && cfg && (
           <>
-            <p className="hint">Activation starts the config generating. Deprecation later never
-              stops verification — old keys verify forever.</p>
+            <p className="hint">Activation starts the configuration marking new text. Deprecating
+              it later only stops marking; verification of old text continues indefinitely.</p>
             <div className="row">
               <button disabled={busy || !canOperate || done} onClick={() => guard(async () => {
                 await api.transition(cfg.config_id, "activate");
@@ -177,11 +177,11 @@ export default function Onboard({ role }: { role: string }) {
             </div>
             {done && (
               <>
-                <p className="okline">✓ {modelId} {version} is live: marking via the
-                  generation-profile API, verifiable on the Verify screen.</p>
+                <p className="okline">✓ {modelId} {version} is live. It marks text through the
+                  generation-profile API and its output can be checked on the Verify screen.</p>
                 <p className="hint">
-                  Inference hook: <code>GET /v1/models/{modelId}/versions/{version}/generation-profile</code>
-                  {" "}— see hooks/ for HF generate and vLLM examples.
+                  Inference hook: <code>GET /v1/models/{modelId}/versions/{version}/generation-profile</code>.
+                  The hooks/ directory has HF generate and vLLM examples.
                 </p>
               </>
             )}

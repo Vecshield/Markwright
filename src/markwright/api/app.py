@@ -25,7 +25,7 @@ from markwright.stats.null_model import NullModel
 from markwright.verify import Candidate, verify
 
 app = FastAPI(title="Markwright", version=__version__,
-              description="Management layer for LLM text watermarking. Results are probabilistic evidence, never a verdict.")
+              description="Control plane for LLM text watermarking. Results are calibrated statistical evidence with an explicit false-positive target; the API does not decide whether text is AI-written.")
 
 # Deployment profile (design §1: one codebase, profiles selected by config).
 # dev/onprem accept provisional calibrations; provider refuses them (POC 1.6).
@@ -602,7 +602,7 @@ class VerifyIn(BaseModel):
     text: str | None = None
     token_ids: list[int] | None = None     # design §8.1: body is {text} or {token_ids}
     config_ids: list[str] | None = None
-    fpr_target: float | None = Field(default=None, gt=0, le=0.05, description="may only tighten the policy value")
+    fpr_target: float | None = Field(default=None, gt=0, le=0.05, description="optional override; it can only lower the deployment value")
 
 
 def _count_tokens(text: str, tokenizer_ref: str) -> int:
