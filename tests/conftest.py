@@ -81,11 +81,21 @@ class ParityAdapter:
     def default_params(self) -> dict:
         return {"min_tokens": 50}
 
-    def generate_config(self, params, key, tokenizer_ref):  # pragma: no cover - unused in tests
-        raise NotImplementedError
+    def generate_config(self, params, key, tokenizer_ref):
+        from markwright.schemes.base import GenerationConfig
 
-    def apply(self, config):  # pragma: no cover - unused in tests
-        raise NotImplementedError
+        return GenerationConfig(self.scheme_id, self.scheme_version, params, key, tokenizer_ref)
+
+    def apply(self, config):
+        """A real (tiny) logits processor: bias even token ids, which is what
+        `detect` measures. Lets the demo-samples endpoint generate a genuinely
+        marked sample without torch-backed schemes being installed."""
+        def processor(input_ids, scores):
+            scores = scores.clone()
+            scores[:, ::2] += 2.5
+            return scores
+
+        return processor
 
     def detect(self, text: str | TokenIds, params: dict, key, tokenizer_ref: str) -> Detection:
         if isinstance(text, str):

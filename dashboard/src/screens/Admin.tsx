@@ -1,35 +1,29 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
-import { api, ApiError, AuditEntry, Policy, ResultRow } from "../api";
+import { api, AuditEntry, fmtFpr, Policy, ResultRow } from "../api";
+import { ErrorBanner, Panel, Toast, useAsync } from "../components";
 
 /** Policy (admin-editable, audited), recent verification activity (role-scoped),
  * and the tail of the tamper-evident audit log. */
 export default function Admin({ role }: { role: string }) {
-  const [policy, setPolicy] = useState<Policy | null>(null);
+  const policyState = useAsync(() => api.policy(), [role]);
+  const resultsState = useAsync(() => api.results(), [role]);
+  const auditState = useAsync(() => api.audit(), [role]);
   const [fpr, setFpr] = useState("");
   const [retention, setRetention] = useState("");
-  const [results, setResults] = useState<ResultRow[]>([]);
-  const [audit, setAudit] = useState<{ head: string; entries: AuditEntry[] } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [auditError, setAuditError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [saved, setSaved] = useState<string | null>(null);
 
-  const refresh = useCallback(() => {
-    api.policy().then((p) => {
-      setPolicy(p);
-      setFpr(p.fpr_target.toExponential(0));
-      setRetention(String(p.retention_days));
-    }).catch((e) => setError(String(e)));
-    api.results().then(setResults).catch(() => setResults([]));
-    api.audit().then(setAudit).catch((e) =>
-      setAuditError(e instanceof ApiError && e.status === 403
-        ? "Audit is readable by the auditor and admin roles only."
-        : String(e)));
-  }, []);
-  useEffect(refresh, [refresh]);
+  const policy: Policy | null = policyState.data;
+  // seed the editable fields once the policy arrives for this role
+  if (policy && fpr === "") {
+    setFpr(policy.fpr_target.toExponential(0));
+    setRetention(String(policy.retention_days));
+  }
 
   return (
     <>
+      {saved && <Toast text={saved} onDone={() => setSaved(null)} />}
       <div className="card">
         <h2>Policy</h2>
         <p className="hint">
@@ -37,7 +31,11 @@ export default function Admin({ role }: { role: string }) {
           evidence bands are derived from it, and a verifier can lower it for one request but
           never raise it. Changes are audited.
         </p>
-        {error && <div className="error">{error}</div>}
+        {error != null && <ErrorBanner error={error} />}
+        {role !== "admin" && (
+          <p className="hint">Editing policy is limited to the admin role; the current values are
+            shown so every role can see the bar their results are judged against.</p>
+        )}
         <div className="row">
           <label>false-positive target{" "}
             <select className="field" value={fpr} onChange={(e) => setFpr(e.target.value)}>
@@ -51,21 +49,19 @@ export default function Admin({ role }: { role: string }) {
           <button disabled={role !== "admin"} title={role !== "admin" ? "admin only" : ""}
             onClick={async () => {
               setError(null);
-              setSaved(false);
               try {
-                await api.putPolicy({ fpr_target: Number(fpr), retention_days: Number(retention) });
-                setSaved(true);
-                refresh();
+                const p = await api.putPolicy({ fpr_target: Number(fpr), retention_days: Number(retention) });
+                setSaved(`policy saved: false-positive target ${fmtFpr(p.fpr_target)}, retention ${p.retention_days} days`);
+                policyState.reload();
               } catch (e) {
-                setError(e instanceof ApiError ? e.message : String(e));
+                setError(e);
               }
             }}>Save (audited)</button>
-          {saved && <span className="okline">✓ saved</span>}
         </div>
         {policy && (
           <p className="hint" style={{ marginTop: "0.6rem" }}>
             A tighter target needs a calibration that can resolve it. The bundled starter corpora
-            resolve p-values down to about 3e-3, so a 1e-4 target caps every band at <i>weak</i>
+            resolve p-values down to about 3e-3, so a 1e-4 target caps every band at <i>weak</i>{" "}
             until you recalibrate on a production-size corpus; the result card states the cap and
             the reason.
           </p>
@@ -77,9 +73,11 @@ export default function Admin({ role }: { role: string }) {
         <p className="hint">Metadata only; submitted text is never stored, so none can be shown.
           {role === "verifier" || role === "operator" ? " You see your own requests; auditors see the deployment's." : ""}
         </p>
+        <Panel state={resultsState} what="Verification activity" roles={["verifier", "operator", "auditor", "admin"]}>
+        {(results: ResultRow[]) => (
         <table>
           <thead>
-            <tr><th>when</th><th>by</th><th>model</th><th>tokens</th><th>band</th><th>fpr</th></tr>
+            <tr><th>when</th><th>by</th><th>model</th><th>tokens</th><th>band</th><th>false-positive target</th></tr>
           </thead>
           <tbody>
             {results.slice(0, 15).map((r) => (
@@ -90,18 +88,20 @@ export default function Admin({ role }: { role: string }) {
                 <td>{r.token_count}</td>
                 <td><span className={`band band-${r.band}`} style={{ padding: "0.1rem 0.5rem", fontSize: "0.78rem" }}>
                   {r.band.replace(/_/g, " ")}</span></td>
-                <td>{r.fpr_target.toExponential(0)}</td>
+                <td>{fmtFpr(r.fpr_target)}</td>
               </tr>
             ))}
-            {results.length === 0 && <tr><td colSpan={6} className="hint">no results yet</td></tr>}
+            {results.length === 0 && <tr><td colSpan={6} className="hint">no verifications yet</td></tr>}
           </tbody>
         </table>
+        )}
+        </Panel>
       </div>
 
       <div className="card">
         <h2>Audit log</h2>
-        {auditError && <div className="error">{auditError}</div>}
-        {audit && (
+        <Panel state={auditState} what="The audit log" roles={["auditor", "admin"]}>
+        {(audit: { head: string; entries: AuditEntry[] }) => (
           <>
             <p className="hint">
               Hash-chained and Ed25519-anchored; every mutation and every denial lands here. Export
@@ -126,6 +126,7 @@ export default function Admin({ role }: { role: string }) {
             </table>
           </>
         )}
+        </Panel>
       </div>
     </>
   );

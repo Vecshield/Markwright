@@ -264,3 +264,58 @@ footer {
   font-size: 0.85rem;
   border-top: 1px solid var(--line);
 }
+
+/* ---- role-aware panels, toasts, diagrams (added with the samples/schemes work) ---- */
+.notice {
+  background: var(--elevated);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+.notice b { font-weight: 600; }
+
+header nav a.dim { opacity: 0.55; }
+.rolepick { display: flex; align-items: center; gap: 0.35rem; }
+
+.toast {
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  max-width: 26rem;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  box-shadow: var(--shadow);
+  font-size: 0.9rem;
+  z-index: 20;
+}
+
+.minih {
+  margin: 0 0 0.3rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+ul.tight { margin: 0; padding-left: 1.1rem; }
+ul.tight li { margin-bottom: 0.2rem; font-size: 0.92rem; }
+dl.facts dd.prose { font-family: inherit; font-size: 0.93rem; }
+
+/* onboarding diagram */
+.diagram { width: 100%; height: auto; display: block; }
+.dg-box { fill: var(--elevated); stroke: var(--line); }
+.dg-final { stroke: var(--accent); }
+.dg-title {
+  fill: var(--ink); font: 600 13px "Inter", system-ui, sans-serif; text-anchor: middle;
+}
+.dg-body { fill: var(--muted); font: 11px var(--mono); text-anchor: middle; }
+.dg-arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.dg-arrowhead { fill: var(--muted); }
+.dg-note { fill: var(--muted); font: 11.5px "Inter", system-ui, sans-serif; }

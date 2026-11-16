@@ -1,23 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
-import { api, ApiError, KeyRow } from "../api";
+import { api, KeyRow } from "../api";
+import { ErrorBanner, Panel, Toast, useAsync } from "../components";
 
 /** Key lifecycle, metadata only: the registry stores references and the
  * backend holds the bytes. Rotation keeps old versions verifying; revocation
  * stops marking at once and flags every later match. */
 export default function Keys({ role }: { role: string }) {
-  const [keys, setKeys] = useState<KeyRow[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const state = useAsync(() => api.keys(), [role]);
+  const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const refresh = useCallback(() => {
-    api.keys().then(setKeys).catch((e) =>
-      setError(e instanceof ApiError && e.status === 403
-        ? "The verifier role cannot read key metadata. Switch to operator, auditor or admin."
-        : String(e)));
-  }, []);
-  useEffect(refresh, [refresh]);
 
   async function act(fn: () => Promise<unknown>, note: string) {
     setBusy(true);
@@ -25,18 +18,17 @@ export default function Keys({ role }: { role: string }) {
     try {
       await fn();
       setNotice(note);
-      refresh();
+      state.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e));
+      setError(e);
     } finally {
       setBusy(false);
     }
   }
 
-  const lineages = [...new Set(keys.map((k) => k.lineage_id))];
-
   return (
     <>
+      {notice && <Toast text={notice} onDone={() => setNotice(null)} />}
       <div className="card">
         <h2>Keys</h2>
         <p className="hint">
@@ -46,8 +38,9 @@ export default function Keys({ role }: { role: string }) {
           the recorded reason. Generation keys and signing identities are separate records and the
           server refuses to mix them.
         </p>
-        {error && <div className="error">{error}</div>}
-        {notice && <p className="okline">✓ {notice}</p>}
+        {error != null && <ErrorBanner error={error} />}
+        <Panel state={state} what="Key metadata" roles={["operator", "auditor", "admin"]}>
+        {(keys: KeyRow[]) => { const lineages = [...new Set(keys.map((k) => k.lineage_id))]; return (<>
         {lineages.map((lin) => (
           <table key={lin} style={{ marginBottom: "1rem" }}>
             <thead>
@@ -92,7 +85,9 @@ export default function Keys({ role }: { role: string }) {
             </tbody>
           </table>
         ))}
-        {keys.length === 0 && !error && <p className="hint">No keys yet. Onboarding a model creates its first lineage.</p>}
+        {keys.length === 0 && <p className="hint">No keys yet. Onboarding a model creates its first lineage.</p>}
+        </>); }}
+        </Panel>
       </div>
     </>
   );

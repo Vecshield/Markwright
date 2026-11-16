@@ -6,43 +6,83 @@ import Keys from "./screens/Keys";
 import Onboard from "./screens/Onboard";
 import Overview from "./screens/Overview";
 import Registry from "./screens/Registry";
+import Schemes from "./screens/Schemes";
 import Verify from "./screens/Verify";
 
 const ROLES = ["verifier-token", "operator-token", "auditor-token", "admin-token"];
-const SCREENS = ["overview", "verify", "registry", "onboard", "keys", "admin"] as const;
+const SCREENS = ["overview", "verify", "schemes", "registry", "onboard", "keys", "admin"] as const;
 type Screen = (typeof SCREENS)[number];
 
+/** Which roles get full use of a screen. Others still see it, with a calm
+ * notice instead of an error, so the role model is legible by exploring. */
+const SCREEN_ROLES: Record<Screen, string[]> = {
+  overview: ["verifier", "operator", "auditor", "admin"],
+  verify: ["verifier", "operator", "auditor", "admin"],
+  schemes: ["verifier", "operator", "auditor", "admin"],
+  registry: ["verifier", "operator", "auditor", "admin"],
+  onboard: ["operator", "admin"],
+  keys: ["operator", "auditor", "admin"],
+  admin: ["auditor", "admin"],
+};
+
+function screenFromHash(): Screen {
+  const h = window.location.hash.replace("#", "") as Screen;
+  return SCREENS.includes(h) ? h : "overview";
+}
+
 export default function App() {
-  const [screen, setScreen] = useState<Screen>(
-    () => ((window.location.hash.replace("#", "") as Screen) || "overview"));
+  const [screen, setScreen] = useState<Screen>(screenFromHash);
   const [token, setTok] = useState(getToken());
   const [theme, setThm] = useState(getTheme());
   const [fpr, setFpr] = useState<number | null>(null);
 
-  useEffect(() => {
-    setTheme(theme);
-  }, [theme]);
+  useEffect(() => setTheme(theme), [theme]);
 
+  // Re-read the policy whenever the role changes: the header must never show a
+  // value fetched as a different principal.
   useEffect(() => {
-    api.policy().then((p) => setFpr(p.fpr_target)).catch(() => setFpr(null));
+    let live = true;
+    api.policy()
+      .then((p) => live && setFpr(p.fpr_target))
+      .catch(() => live && setFpr(null));
+    return () => {
+      live = false;
+    };
   }, [token]);
 
+  useEffect(() => {
+    const onHash = () => setScreen(screenFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
   const role = roleOf(token);
-  const nav = (s: Screen) => () => {
+  const go = (s: Screen) => (e: React.MouseEvent) => {
+    e.preventDefault();
     window.location.hash = s;
     setScreen(s);
   };
 
+  // Keying every screen by the token remounts it on a role change, so each one
+  // refetches as the new principal instead of showing the previous role's data.
+  const props = { role, key: token };
+
   return (
     <>
       <header>
-        <span className="logo">
+        <a className="logo" href="#overview" onClick={go("overview")}>
           <img src="/brand/custody.svg" alt="" />
           <b>Markwright</b>
-        </span>
+        </a>
         <nav>
           {SCREENS.map((s) => (
-            <a key={s} href={`#${s}`} className={screen === s ? "active" : ""} onClick={nav(s)}>
+            <a
+              key={s}
+              href={`#${s}`}
+              className={screen === s ? "active" : SCREEN_ROLES[s].includes(role) ? "" : "dim"}
+              onClick={go(s)}
+              title={SCREEN_ROLES[s].includes(role) ? "" : `limited for the ${role} role`}
+            >
               {s[0].toUpperCase() + s.slice(1)}
             </a>
           ))}
@@ -53,35 +93,42 @@ export default function App() {
             false-positive target {fmtFpr(fpr)}
           </span>
         )}
-        <select
-          value={token}
-          onChange={(e) => {
-            setToken(e.target.value);
-            setTok(e.target.value);
-          }}
-          title="dev tokens; production uses OIDC"
-        >
-          {ROLES.map((r) => (
-            <option key={r} value={r}>
-              {roleOf(r)}
-            </option>
-          ))}
-        </select>
+        <label className="rolepick">
+          <span className="hint">role</span>
+          <select
+            value={token}
+            onChange={(e) => {
+              setToken(e.target.value);
+              setTok(e.target.value);
+            }}
+            title="demo tokens; a real deployment assigns roles through OIDC"
+          >
+            {ROLES.map((r) => (
+              <option key={r} value={r}>
+                {roleOf(r)}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           className="themebtn ghost"
           onClick={() => setThm(theme === "midnight" ? "frost" : "midnight")}
-          title="theme (brand kit: Midnight / Frost)"
+          title="theme"
         >
           {theme === "midnight" ? "☾ midnight" : "☀ frost"}
         </button>
       </header>
       <main>
-        {screen === "overview" && <Overview onNavigate={(s) => nav(s as Screen)()} />}
-        {screen === "verify" && <Verify />}
-        {screen === "registry" && <Registry role={role} />}
-        {screen === "onboard" && <Onboard role={role} />}
-        {screen === "keys" && <Keys role={role} />}
-        {screen === "admin" && <Admin role={role} />}
+        {screen === "overview" && <Overview {...props} onNavigate={(s) => {
+          window.location.hash = s;
+          setScreen(s as Screen);
+        }} />}
+        {screen === "verify" && <Verify {...props} />}
+        {screen === "schemes" && <Schemes {...props} />}
+        {screen === "registry" && <Registry {...props} />}
+        {screen === "onboard" && <Onboard {...props} />}
+        {screen === "keys" && <Keys {...props} />}
+        {screen === "admin" && <Admin {...props} />}
       </main>
       <footer>
         A result measures the evidence for one registered watermark configuration. It cannot say

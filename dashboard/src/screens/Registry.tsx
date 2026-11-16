@@ -18,7 +18,7 @@ export default function Registry({ role }: { role: string }) {
     Promise.all([api.models(), api.configs()])
       .then(([m, c]) => { setModels(m); setConfigs(c); })
       .catch((e) => setError(String(e)));
-  }, []);
+  }, []);   // remounted per role by App's key={token}, so one fetch per principal
 
   useEffect(() => {
     refresh();
@@ -119,7 +119,7 @@ function RowWithDrawer({ c, open, onToggle, runs, corpora, canOperate, busy, act
                   `${r.run_id.slice(0, 8)}…(${r.status})`).join(", ") : "none"}</dd>
               </dl>
             )}
-            {!c.scheme_params && <p className="hint">Parameters and key refs are withheld from the verifier role.</p>}
+            {!c.scheme_params && <p className="hint">Scheme parameters and key references are not shown to the verifier role. Switch role in the header to see them.</p>}
             {canOperate && (
               <div className="row">
                 {c.status === "draft" && !calibrated && (

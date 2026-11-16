@@ -208,3 +208,59 @@ def test_denied_calls_are_audited_and_chain_valid(api):
     assert audit["head"] == audit["entries"][-1]["entry_hash"]
     for e in audit["entries"]:
         jsonschema.validate(e, AUDIT_SCHEMA)
+
+
+# ---- scheme catalogue + demo samples (UI support) ------------------------------------------
+def test_scheme_catalogue_describes_installed_and_absent_schemes(api):
+    client, _ = api
+    cat = client.get("/v1/schemes/catalogue", headers=VERIFIER)
+    assert cat.status_code == 200
+    by_id = {e["scheme_id"]: e for e in cat.json()}
+    assert "synthid-text" in by_id and "unigram" in by_id
+    sid = by_id["synthid-text"]
+    assert sid["installed"] is True and sid["scheme_version"]
+    # an honest entry explains mechanism AND limits, and names its source
+    for field in ("how_it_marks", "how_it_detects", "statistic", "key_material", "citation"):
+        assert sid[field]
+    assert sid["limits"] and sid["strengths"]
+    # a scheme we do not ship is described but flagged
+    assert by_id["unigram"]["installed"] is False and "capabilities" not in by_id["unigram"]
+
+
+def test_schemes_endpoint_carries_explanations(api):
+    client, _ = api
+    entries = client.get("/v1/schemes", headers=OP).json()
+    synthid = next(e for e in entries if e["scheme_id"] == "synthid-text")
+    assert synthid["explanation"]["title"].startswith("SynthID")
+    # the test-only parity scheme has no explanation, and that is not an error
+    parity = next(e for e in entries if e["scheme_id"] == "parity-test")
+    assert parity["explanation"] is None
+
+
+def test_demo_samples_are_generated_on_this_deployment(api):
+    """The Verify presets must be real inputs for THIS deployment, with the
+    marked one carrying this deployment's own key."""
+    client, _ = api
+    r = client.get("/v1/samples", headers=VERIFIER)
+    assert r.status_code == 200
+    body = r.json()
+    ids = {s["id"] for s in body["samples"]}
+    assert {"human", "short"} <= ids
+    # no active config yet -> no marked sample, and the reason is stated rather
+    # than the endpoint silently returning fewer samples
+    assert "marked" not in ids and any("no active" in n for n in body["notes"])
+    short = next(s for s in body["samples"] if s["id"] == "short")
+    assert len(short["token_ids"]) == 30 and short["expect"] == "insufficient evidence"
+
+    # after onboarding, the marked sample appears and actually verifies
+    bootstrap_parity_config(client)
+    body2 = client.get("/v1/samples", headers=VERIFIER).json()
+    marked = next(s for s in body2["samples"] if s["id"] == "marked")
+    res = client.post("/v1/verify", json={"token_ids": marked["token_ids"]}, headers=VERIFIER).json()
+    assert res["band"] in ("moderate_evidence", "strong_evidence")
+    # and the samples behave as the labels promise
+    human = next(s for s in body2["samples"] if s["id"] == "human")
+    assert client.post("/v1/verify", json={"token_ids": human["token_ids"]},
+                       headers=VERIFIER).json()["band"] in ("no_evidence", "weak_evidence")
+    assert client.post("/v1/verify", json={"token_ids": short["token_ids"]},
+                       headers=VERIFIER).json()["band"] == "insufficient_evidence"

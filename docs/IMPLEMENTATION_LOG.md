@@ -464,3 +464,42 @@ persisted. All plain React + fetch — still zero runtime deps beyond react.
 - Tests: all asserted substrings kept on purpose ("not evidence of human
   authorship", "calibration resolves p down to", "expected by chance");
   103 passed, dashboard build clean.
+
+### UI fixes + demos + scheme catalogue (commit: ui-schemes-demos)
+Reported: "lots of errors in the UI and no dynamic updates when I change the role".
+Both reproduced in the browser before changing anything.
+- ROOT CAUSE 1 (no dynamic updates): every screen's fetch ran in a
+  `useCallback(..., [])` / `useEffect(..., [])`, so changing the role token
+  never refetched. Fixed in `App.tsx` by keying each screen on the auth token
+  (`key={token}`), which remounts it as the new principal; verified live
+  (verifier → operator on Keys went from 0 tables to 3 tables and 2 Rotate
+  buttons with no reload).
+- ROOT CAUSE 2 (lots of errors): the 403s were correct RBAC, but every screen
+  rendered them as error banners. Added `components.tsx` with `useAsync`
+  (separates forbidden from error), `Panel` (one place deciding
+  loading/forbidden/error/content), `Restricted` (calm notice naming the roles
+  that can see it), `ErrorBanner` and `Toast`. Keys and Admin converted; nav
+  dims screens the role cannot fully use. Verified: verifier on Admin now shows
+  0 errors, a read-only policy with an explanation, a disabled Save, and one
+  notice for the audit section.
+- DEMOS: new `GET /v1/samples` generates presets ON the running deployment: a
+  marked sample driven through the newest active configuration's own logits
+  processor (so it carries that deployment's key), a human passage from the
+  bundled corpus, and a 30-token slice. Absent pieces are reported in `notes`
+  rather than silently omitted. The Verify screen shows them as buttons with
+  the expected outcome and the reason. Verified live: marked → MODERATE
+  EVIDENCE, human → NO EVIDENCE, short → INSUFFICIENT EVIDENCE.
+- SCHEME CATALOGUE: `src/markwright/schemes/explain.py` is one source of truth
+  for plain-language explanations (how it marks, how it detects, statistic, key
+  material, strengths, limits, parameters, citation), surfaced by
+  `GET /v1/schemes/catalogue` and on `GET /v1/schemes`. New Schemes screen
+  renders it with an inline SVG diagram of the onboarding path
+  (register → configure → key → calibrate → accept → activate) and notes the two
+  rules that path enforces. Entries exist for schemes we do NOT ship (unigram,
+  kuditipudi-exp) so an operator can compare before adding one. `docs/schemes.md`
+  carries the same material for readers outside the app.
+- `ParityAdapter` gained a real `apply()` (biases even token ids, which is what
+  it detects), so the samples endpoint is testable without torch.
+- Tests: 3 new (catalogue shape incl. absent schemes, explanations on
+  /v1/schemes with parity-test correctly having none, samples generated and
+  actually verifying as labelled). 106 passed, ruff clean, dashboard builds.

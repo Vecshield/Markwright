@@ -62,6 +62,32 @@ export interface ModelRow {
   created_at: string;
 }
 
+export interface SchemeCatalogueEntry {
+  scheme_id: string;
+  title: string;
+  citation: string;
+  status: string;
+  installed: boolean;
+  scheme_version?: string;
+  how_it_marks: string;
+  how_it_detects: string;
+  statistic: string;
+  key_material: string;
+  strengths: string[];
+  limits: string[];
+  params: Record<string, string>;
+  defaults?: Record<string, unknown>;
+  capabilities?: Record<string, unknown>;
+}
+
+export interface DemoSample {
+  id: string;
+  label: string;
+  expect: string;
+  token_ids: number[];
+  why: string;
+}
+
 export interface SchemeInfo {
   scheme_id: string;
   scheme_version: string;
@@ -205,6 +231,8 @@ export const api = {
     call<{ detector_ref: string; sha256: string; note: string }>(
       "POST", `/v1/configs/${config_id}/detector:publish`),
   schemes: () => call<SchemeInfo[]>("GET", "/v1/schemes"),
+  catalogue: () => call<SchemeCatalogueEntry[]>("GET", "/v1/schemes/catalogue"),
+  samples: () => call<{ samples: DemoSample[]; notes: string[] }>("GET", "/v1/samples"),
   // calibration
   corpora: () => call<string[]>("GET", "/v1/null-corpora"),
   calibrate: (config_id: string, null_corpus_ids: string[]) =>

@@ -4,7 +4,7 @@ import { api, fmtFpr } from "../api";
 
 /** The screen that describes the system: what Markwright is, how a result is
  * produced, the honesty rules, and the live state of THIS deployment. */
-export default function Overview({ onNavigate }: { onNavigate: (s: string) => void }) {
+export default function Overview({ onNavigate, role }: { onNavigate: (s: string) => void; role?: string }) {
   const [ready, setReady] = useState<{ profile: string; schemes: number; calibrated_configs: number } | null>(null);
   const [policy, setPolicy] = useState<{ fpr_target: number; retention_days: number } | null>(null);
   const [counts, setCounts] = useState<{ models: number; configs: number } | null>(null);
@@ -82,8 +82,12 @@ export default function Overview({ onNavigate }: { onNavigate: (s: string) => vo
             <dt>false-positive target</dt><dd>{policy ? `${fmtFpr(policy.fpr_target)} (${policy.fpr_target.toExponential(1)})` : "–"}</dd>
             <dt>result retention</dt><dd>{policy ? `${policy.retention_days} days (metadata only)` : "–"}</dd>
           </dl>
+          <dl className="facts" style={{ marginTop: 0 }}>
+            <dt>your role</dt><dd>{role ?? "–"}</dd>
+          </dl>
           <div className="row">
             <button onClick={() => onNavigate("verify")}>Verify a text</button>
+            <button className="ghost" onClick={() => onNavigate("schemes")}>How schemes work</button>
             <button className="ghost" onClick={() => onNavigate("onboard")}>Onboard a model</button>
           </div>
         </div>

@@ -53,15 +53,12 @@ texts, calibration notes, API descriptions, README):
 ## Track B — flows, ordered by value
 
 ### B1. Verify flow (the verifier's whole world)
-- **Example input button**: "try an example" fills the box with a bundled
-  marked sample and an unmarked sample so a first-time verifier sees both
-  outcomes in under a minute. No model download: ship two token-id fixtures
-  with the dashboard.
-- **Live input feedback**: character count and an estimate against the minimum
-  token count, shown before submitting, so "insufficient evidence" is never a
-  surprise.
-- **Submit with Cmd/Ctrl+Enter**; disable the button while busy (exists) and
-  show elapsed time for long scans.
+- [x] **Example inputs**: three presets from `GET /v1/samples`, generated on the
+  running deployment (marked with its own key, a human passage, a 30-token
+  slice), each stating what to expect and why.
+- [x] **Live input feedback**: token estimate with a warning below the minimum,
+  so "insufficient evidence" is never a surprise.
+- [x] **Submit with Cmd/Ctrl+Enter**; friendly message for malformed JSON.
 - **Scope selector**: filter which configs are scanned (model family,
   time window of generation, scheme) once the result-count grows; fewer
   candidates also means a smaller multiple-scan correction, and the UI should
@@ -111,6 +108,9 @@ texts, calibration notes, API descriptions, README):
   Recharts or plain SVG; keep the one-hue rule.
 
 ### B7. Platform polish
+- [x] Role changes refetch every screen (App keys screens by the auth token).
+- [x] Permission limits render as a calm notice, never an error banner.
+- [x] Toasts for completed actions (policy save, key rotate/revoke).
 - Loading skeletons for tables; empty states already exist, keep them wordy.
 - Toast for completed actions (rotate, policy save) instead of inline-only.
 - `prefers-color-scheme` picks the default theme; toggle still overrides.
