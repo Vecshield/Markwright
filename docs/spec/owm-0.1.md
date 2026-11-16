@@ -6,7 +6,9 @@ implementation; the format is independent of it.
 
 Status: draft 0.1. The JSON Schemas under `schemas/` are normative; this
 document explains them. Breaking changes bump the `owm` version string carried
-by every document.
+by every document. [data-model.md](data-model.md) gives the same model
+formally: value domains, relations, numbered integrity constraints, lifecycle
+transition systems and the verification judgment as inference rules.
 
 ## 1. Why a standard
 

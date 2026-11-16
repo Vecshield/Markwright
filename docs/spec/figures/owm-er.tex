@@ -1,0 +1,91 @@
+% OWM 0.1 entity-relationship diagram, Chen notation.
+% Standalone; compile with: pdflatex owm-er.tex
+% For a paper, drop the \documentclass..\begin{document} wrapper and keep the
+% tikzpicture. Cardinalities use (min,max) pairs; ISA is the specialisation
+% of Key by purpose.
+\documentclass[tikz,border=6pt]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{positioning,shapes.geometric,calc}
+\begin{document}
+\begin{tikzpicture}[
+  font=\small\sffamily,
+  ent/.style  ={rectangle, draw, thick, minimum width=27mm, minimum height=8mm,
+                align=center, fill=blue!4},
+  weak/.style ={ent, double, double distance=1pt, fill=blue!2},
+  rel/.style  ={diamond, draw, aspect=2.1, inner sep=1pt, align=center,
+                fill=gray!8, font=\scriptsize\sffamily},
+  att/.style  ={ellipse, draw, dashed, font=\scriptsize\sffamily,
+                inner sep=1.5pt, fill=white},
+  key/.style  ={att, font=\scriptsize\sffamily\underline},
+  lbl/.style  ={font=\scriptsize\sffamily, inner sep=1pt, fill=white},
+  link/.style ={-, thick}]
+
+% ---------------- entities ----------------
+\node[ent] (desc)  {Scheme\\Descriptor};
+\node[ent, right=34mm of desc] (cfg) {Configuration};
+\node[ent, right=34mm of cfg]  (key) {Key Record};
+\node[ent, below=20mm of desc] (bind) {Binding};
+\node[ent, below=20mm of cfg]  (cal)  {Calibration\\Run};
+\node[ent, below=20mm of key]  (res)  {Verification\\Result};
+\node[ent, below=20mm of bind] (decl) {Repo\\Declaration};
+\node[ent, below=20mm of res]  (aud)  {Audit Entry};
+
+% ---------------- relationships ----------------
+\node[rel, right=5mm of desc] (r1) {realises};
+\node[rel, right=5mm of cfg]  (r2) {marks\\with};
+\node[rel, below=5mm of desc] (r3) {exposes};
+\node[rel, below=5mm of cfg]  (r4) {calibrated\\by};
+\node[rel, below=5mm of key]  (r5) {scores};
+\node[rel] at ($(cfg)!0.5!(decl)+(-17mm,-10mm)$) (r6) {declares};
+\node[rel, below=5mm of res]  (r7) {records};
+
+\draw[link] (desc) -- node[lbl,above]{(1,1)} (r1);
+\draw[link] (r1) -- node[lbl,above]{(0,n)} (cfg);
+\draw[link] (cfg) -- node[lbl,above]{(1,1)} (r2);
+\draw[link] (r2) -- node[lbl,above]{(0,n)} (key);
+\draw[link] (desc) -- node[lbl,left]{(1,1)} (r3);
+\draw[link] (r3) -- node[lbl,left]{(1,n)} (bind);
+\draw[link] (cfg) -- node[lbl,left]{(0,1)} (r4);
+\draw[link] (r4) -- node[lbl,left]{(1,1)} (cal);
+\draw[link] (key) -- node[lbl,right]{(0,n)} (r5);
+\draw[link] (r5) -- node[lbl,right]{(0,n)} (res);
+\draw[link] (cfg) -- node[lbl,left,pos=0.75]{(1,1)} (r6);
+\draw[link] (r6) -- node[lbl,below]{(0,n)} (decl);
+\draw[link] (res) -- node[lbl,right]{(1,1)} (r7);
+\draw[link] (r7) -- node[lbl,right]{(0,n)} (aud);
+
+% ---------------- recursive relationship: supersession ----------------
+\node[rel, above=9mm of cfg] (sup) {supersedes};
+\draw[link] (cfg.north west) -- node[lbl,left]{(0,1)} (sup.south west);
+\draw[link] (sup.south east) -- node[lbl,right]{(0,1)} (cfg.north east);
+
+% ---------------- ISA: key specialisation ----------------
+\node[isosceles triangle, draw, shape border rotate=270, minimum width=9mm,
+      inner sep=1pt, font=\tiny\sffamily, right=26mm of key] (isa) {\rotatebox{90}{ISA}};
+\node[ent, above right=3mm and 6mm of isa] (gk) {Generation\\Key};
+\node[ent, below right=3mm and 6mm of isa] (sk) {Signing\\Key};
+\draw[link] (key) -- (isa);
+\draw[link] (isa) -- (gk);
+\draw[link] (isa) -- (sk);
+
+% ---------------- a few discriminating attributes ----------------
+\node[key, above left=7mm and 1mm of desc]  (a1) {scheme\_id};
+\node[att, above=7mm of desc]               (a2) {modality};
+\node[att, above right=6mm and -4mm of desc](a3) {stage};
+\draw[link] (a1) -- (desc); \draw[link] (a2) -- (desc); \draw[link] (a3) -- (desc);
+
+\node[key, above=16mm of key]               (b1) {key\_id};
+\node[att, above right=12mm and 2mm of key] (b2) {state};
+\node[att, right=4mm of key]                (b3) {lineage\_id};
+\draw[link] (b1) -- (key); \draw[link] (b2) -- (key); \draw[link] (b3) -- (key);
+
+\node[key, left=5mm of cal]   (c1) {run\_id};
+\node[att, below=5mm of cal]  (c2) {quality};
+\draw[link] (c1) -- (cal); \draw[link] (c2) -- (cal);
+
+\node[att, right=5mm of res]  (d1) {band};
+\node[att, below right=4mm and 2mm of res] (d2) {caveats};
+\draw[link] (d1) -- (res); \draw[link] (d2) -- (res);
+
+\end{tikzpicture}
+\end{document}

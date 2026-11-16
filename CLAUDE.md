@@ -71,8 +71,9 @@ markwright/
 ├── dashboard/                 # React+TS (Vite): Verify + Registry screens; plain fetch client
 ├── deploy/                    # Dockerfile, compose assets, Helm chart skeleton
 └── docs/
-    ├── spec/                  # OWM 0.1: the open standard (owm-0.1.md, extending.md,
-    │                          #   examples/ = specification-only image descriptors)
+    ├── spec/                  # OWM 0.1: the open standard (owm-0.1.md prose,
+    │                          #   data-model.md formal, extending.md how-to,
+    │                          #   examples/ image descriptors, figures/ TikZ ER)
     ├── poc-plan.md            # the plan being executed (milestones A/B, phases 0–7)
     ├── IMPLEMENTATION_LOG.md  # append-only session log — READ THIS FIRST when resuming
     ├── quickstart.md          # 15-minute laptop walkthrough
