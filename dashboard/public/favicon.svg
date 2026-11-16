@@ -9,7 +9,6 @@
     <filter id="softGlow"><feGaussianBlur stdDeviation="4"/></filter>
     <pattern id="dots" width="31" height="31" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#6BA8F8" fill-opacity=".16"/></pattern>
     <pattern id="gridLines" width="55" height="55" patternUnits="userSpaceOnUse"><path d="M55 0H0V55" stroke="#9CC4F0" stroke-opacity=".055" stroke-width="1" fill="none"/></pattern>
-    </defs><g transform="translate(0 0) scale(1.0)"><rect x="3" y="3" width="114" height="114" rx="29" fill="url(#panelGrad)" stroke="#31577E" stroke-opacity=".8" stroke-width="1.7"/><path d="M21 106H96" stroke="#4F86CE" stroke-opacity=".12"/><path d="M28 88V35L59 68L91 35V88" fill="none" stroke="url(#markGrad)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M28 37L59 68" fill="none" stroke="#99E9FF" stroke-opacity=".58" stroke-width="3.1" stroke-linecap="round"/>
-        <rect x="86" y="30" width="10" height="10" rx="3" fill="#D3F7FF"/>
-        <circle cx="59" cy="68" r="3.5" fill="#DFFAFF"/></g></svg>
+    </defs><g transform="translate(0 0) scale(1.0)"><rect x="3" y="3" width="114" height="114" rx="29" fill="#174A91"/><path d="M60 19L94 38V78L60 98L26 78V38Z" fill="none" stroke="url(#markGrad)" stroke-width="8.5" stroke-linejoin="round"/>
+        <path d="M42 73V43L60 60L78 43V73" fill="none" stroke="#C3EFFF" stroke-width="7.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="60" cy="18" r="5.8" fill="#BEEFFF"/><circle cx="26" cy="78" r="4.6" fill="#54B7FF"/><circle cx="94" cy="78" r="4.6" fill="#54B7FF"/></g></svg>

@@ -139,11 +139,13 @@ last one stopped:
 - Milestone A (working POC) and Milestone B (infra parity) are COMPLETE:
   calibration path, key lifecycle (rotate/revoke/destroy), persistent signed
   audit + offline-verifiable evidence bundles, detector publish, batch verify,
-  offline verification bundles, and the 2-screen dashboard (Verify + Registry,
-  Vite+React+TS under `dashboard/`; `npm run dev` proxies to :8000).
+  offline verification bundles, and the dashboard (6 screens: Overview, Verify,
+  Registry w/ lifecycle actions, Onboard wizard, Keys, Admin —
+  Midnight/Frost themes from assets/brand tokens; `npm run dev` proxies to :8000).
 - Milestone C (v1 slice) in progress: vLLM hook wrapper (interface-level;
   live-vLLM unverified, needs Linux/CUDA) and the KGW adapter as a separate
   package under `packages/` are DONE. Remaining: OIDC, Postgres, Vault Transit,
   then threshold custody, robustness sweeps, X25519 sealing, async jobs, SDKs,
-  Helm templates, remaining dashboard screens (design §11 v1/v2).
+  Helm templates (design §11 v1/v2). Dashboard screens 1–6 of §8.3 are built;
+  Calibration-curves screen remains (needs robustness-sweep data).
 - Dev setup now includes: `uv pip install --python .venv/bin/python -e packages/markwright-scheme-kgw`

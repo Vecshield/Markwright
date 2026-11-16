@@ -402,3 +402,36 @@ tokens; the kit's integrity rules mirror the product honesty rules).
 - Verified live in the browser: both screens render under the new theme; a
   text-path verify of digit soup over both schemes correctly returned
   no_evidence with Bonferroni + caveats (the honest path, by accident).
+
+### Dashboard v2 — full operator console (commit: dashboard-v2)
+Scope per user direction: Markwright remains fully independent (its GitHub org
+home is organizational only — zero cross-project integration); the dashboard
+grew from 2 screens to a 6-screen console; the CUSTODY concept mark replaces
+TRACE as the product icon (favicon + header); themes are the brand kit's
+Midnight (default, dark console) and Frost (light), toggle in the header,
+persisted. All plain React + fetch — still zero runtime deps beyond react.
+- Screens: **Overview** (describes the system: what it is, the
+  gate→candidates→detect→calibrate→Bonferroni→band pipeline strip, honesty
+  rules, the evidence single-hue scale, live deployment facts from
+  /readyz+policy); **Verify** (unchanged); **Registry** (click a config row →
+  drawer with params/tokenizer-hash/key handle + role-gated lifecycle actions:
+  run/accept calibration, activate, deprecate, retire, publish detector behind
+  a confirm that spells out the spoofing consequence); **Onboard** (the §8.3
+  5-step wizard — register → scheme cards with honest capability notes →
+  config+key → calibrate w/ provisional warnings → activate, each step printing
+  the artifact it produced); **Keys** (lineages grouped, state chips, rotate
+  operator / revoke admin-with-reason, purpose separation visible); **Admin**
+  (policy editor w/ floor warning, verification activity metadata, audit tail
+  with head hash).
+- api.ts covers the full surface incl. keys/calibrations/policy/audit/readyz;
+  ApiError surfaces RBAC denials as friendly banners.
+- Fixed: /readyz and /metrics were missing from the vite proxy AND the nginx
+  conf (only /v1 and /healthz were proxied) — Overview's deployment panel
+  showed dashes until then.
+- VERIFIED LIVE end to end in the browser as operator: the wizard ran
+  register→scheme→config+key→calibrate(900 docs, floor 3.4e-3, provisional
+  notes rendered)→accept→activate, ending at "ui-llm 1.0 is live" with the
+  generation-profile pointer; Keys shows the signing identity without
+  lifecycle actions and generation keys with role-gated Rotate/Revoke; Admin
+  (Frost theme, admin role) shows the policy editor and the real audit trail
+  of every click. Build clean (tsc + vite, 174 kB js).

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><defs>
+    <linearGradient id="markGrad" x1="0%" x2="100%" y1="100%" y2="0%"><stop offset="0%" stop-color="#2563EB"/><stop offset="52%" stop-color="#3B82F6"/><stop offset="100%" stop-color="#65D6F8"/></linearGradient>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#0A1A35"/><stop offset="100%" stop-color="#050D1C"/></linearGradient>
+    <linearGradient id="panelGrad" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#122D51"/><stop offset="100%" stop-color="#08182F"/></linearGradient>
+    <linearGradient id="heroWash" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#071A34"/><stop offset="75%" stop-color="#061020"/><stop offset="100%" stop-color="#112A4B"/></linearGradient>
+    <radialGradient id="halo"><stop stop-color="#246CDE" stop-opacity=".25"/><stop offset="100%" stop-color="#2365BE" stop-opacity="0"/></radialGradient>
+    <linearGradient id="ice" x1="0" x2="1"><stop stop-color="#E7F5FF"/><stop offset="100%" stop-color="#A7CFFF"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="11"/></filter>
+    <filter id="softGlow"><feGaussianBlur stdDeviation="4"/></filter>
+    <pattern id="dots" width="31" height="31" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#6BA8F8" fill-opacity=".16"/></pattern>
+    <pattern id="gridLines" width="55" height="55" patternUnits="userSpaceOnUse"><path d="M55 0H0V55" stroke="#9CC4F0" stroke-opacity=".055" stroke-width="1" fill="none"/></pattern>
+    </defs><g transform="translate(0 0) scale(1.0)"><rect x="3" y="3" width="114" height="114" rx="29" fill="url(#panelGrad)" stroke="#31577E" stroke-opacity=".8" stroke-width="1.7"/><path d="M21 106H96" stroke="#4F86CE" stroke-opacity=".12"/><path d="M60 19L94 38V78L60 98L26 78V38Z" fill="none" stroke="url(#markGrad)" stroke-width="8.5" stroke-linejoin="round"/>
+        <path d="M42 73V43L60 60L78 43V73" fill="none" stroke="#C3EFFF" stroke-width="7.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="60" cy="18" r="5.8" fill="#BEEFFF"/><circle cx="26" cy="78" r="4.6" fill="#54B7FF"/><circle cx="94" cy="78" r="4.6" fill="#54B7FF"/></g></svg>
