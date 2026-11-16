@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://markwright.dev/schemas/scheme-descriptor.json",
+  "title": "SchemeDescriptor",
+  "description": "OWM 0.1 scheme descriptor: everything a registry, a serving stack or a verifier needs to know about a watermarking scheme, published by the scheme author as a single machine-readable document. One descriptor per (scheme_id, version). Modality-neutral: text, image, audio and video schemes use the same shape and differ only in carrier and stage vocabularies.",
+  "type": "object",
+  "required": ["owm", "kind", "scheme_id", "version", "title", "modality", "carrier",
+               "embedding", "key_model", "detection", "parameters", "integrations"],
+  "additionalProperties": false,
+  "properties": {
+    "owm": {"type": "string", "enum": ["0.1"], "description": "spec version this document conforms to"},
+    "kind": {"type": "string", "enum": ["scheme-descriptor"]},
+    "scheme_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$",
+                  "description": "Open identifier. Dots namespace third-party schemes (com.acme.myscheme); short ids are reserved for schemes catalogued by this spec's registry."},
+    "namespace": {"type": ["string", "null"], "description": "Optional reverse-DNS publisher namespace"},
+    "version": {"type": "string", "description": "Descriptor/adapter version (semver recommended)"},
+    "title": {"type": "string"},
+    "description": {"type": "string"},
+    "citations": {"type": "array", "items": {"type": "object", "required": ["title"],
+      "properties": {"title": {"type": "string"}, "url": {"type": "string"},
+                     "venue": {"type": "string"}, "year": {"type": "integer"}},
+      "additionalProperties": false}},
+    "license": {"type": ["string", "null"]},
+    "reference_implementations": {"type": "array", "items": {"type": "object",
+      "required": ["name"], "properties": {"name": {"type": "string"}, "url": {"type": "string"}},
+      "additionalProperties": false}},
+
+    "modality": {"type": "string",
+      "description": "One of the registered modalities, or an x- extension",
+      "pattern": "^(text|image|audio|video|x-[a-z0-9-]+)$"},
+
+    "carrier": {"type": "object", "required": ["unit"], "additionalProperties": false,
+      "description": "What the mark lives in and how content maps to countable units. The length gate, null-model buckets and scored counts are all denominated in this unit.",
+      "properties": {
+        "unit": {"type": "string",
+          "description": "The atom counted by gates and scoring: token for text; pixel, patch or latent for images; sample or frame for audio/video",
+          "pattern": "^(token|pixel|patch|latent|sample|frame|x-[a-z0-9-]+)$"},
+        "codec": {"type": "object",
+          "description": "How raw content becomes units. type=tokenizer means detection MUST use the generation tokenizer and implementations record its fingerprint.",
+          "required": ["type"],
+          "properties": {"type": {"type": "string",
+            "pattern": "^(tokenizer|raster|latent-space|pcm|x-[a-z0-9-]+)$"}},
+          "additionalProperties": true},
+        "min_units_default": {"type": ["integer", "null"], "minimum": 1,
+          "description": "Below this, results are insufficient_evidence with no statistic"},
+        "constraints": {"type": "object", "additionalProperties": true,
+          "description": "Modality-specific input constraints, e.g. min_width/min_height for images"}
+      }},
+
+    "embedding": {"type": "object", "required": ["stage"], "additionalProperties": false,
+      "description": "Where in the generation pipeline the mark is applied. This single field determines which serving surfaces can run the scheme.",
+      "properties": {
+        "stage": {"type": "string",
+          "description": "text: logits | sampling | posthoc. image: latent_init | component_weights | posthoc. audio/video: sampling | latent_init | posthoc. x- extensions allowed.",
+          "pattern": "^(logits|sampling|posthoc|latent_init|component_weights|x-[a-z0-9_-]+)$"},
+        "description": {"type": "string"},
+        "distortion_free": {"type": "boolean",
+          "description": "True only when the output distribution is provably unchanged"}
+      }},
+
+    "key_model": {"type": "object",
+      "required": ["requires_key_for_detection", "publishable_detector"],
+      "additionalProperties": false,
+      "properties": {
+        "requires_key_for_detection": {"type": "boolean"},
+        "publishable_detector": {"type": "boolean",
+          "description": "Whether a stranger-runnable artifact can exist. Publishing it may disclose key material; see spoofing."},
+        "backend_mac_supported": {"type": "boolean", "default": false,
+          "description": "PRF-style schemes: detection can run with the key held inside the KMS"},
+        "detection_artifact": {"type": ["string", "null"],
+          "description": "When detection needs an artifact other than the key (e.g. a trained extractor model), what it is"},
+        "material": {"type": "object", "additionalProperties": false,
+          "properties": {
+            "shape": {"type": "string", "description": "e.g. int32[num_keys], uint64, bits[48]"},
+            "derivation": {"type": "string", "description": "e.g. hkdf-sha256"},
+            "info_template": {"type": "string"}
+          }}
+      }},
+
+    "detection": {"type": "object", "required": ["statistic"], "additionalProperties": false,
+      "properties": {
+        "statistic": {"type": "object", "required": ["name", "type"], "additionalProperties": false,
+          "properties": {
+            "name": {"type": "string", "description": "wire name, e.g. mean_g, kgw_z, bit_accuracy"},
+            "type": {"type": "string",
+              "pattern": "^(mean|z_score|bit_accuracy|distance|log_odds|permutation_cost|x-[a-z0-9_-]+)$"},
+            "direction": {"type": "string", "enum": ["higher_is_marked", "lower_is_marked"],
+              "default": "higher_is_marked"}
+          }},
+        "analytic_p": {"type": "object", "additionalProperties": false,
+          "properties": {
+            "available": {"type": "boolean"},
+            "assumptions": {"type": "array", "items": {"type": "string"}},
+            "guidance": {"type": "string", "enum": ["trust", "calibrate"], "default": "calibrate",
+              "description": "calibrate: implementations must re-map the statistic through a fitted null model and never report the analytic value alone"}
+          }},
+        "needs_model_for_detect": {"type": "boolean", "default": false,
+          "description": "Detection requires running the (or a) model, e.g. DDIM inversion"},
+        "cost": {"type": "string", "enum": ["low", "medium", "high"], "default": "low"}
+      }},
+
+    "parameters": {"type": "object", "required": ["schema"], "additionalProperties": false,
+      "properties": {
+        "schema": {"type": "object", "description": "JSON Schema (2020-12) for scheme_params; the registry validates configurations against it"},
+        "defaults": {"type": "object"},
+        "notes": {"type": "object", "additionalProperties": {"type": "string"},
+          "description": "Per-parameter plain-language effect, e.g. 'the quality/detectability dial'"}
+      }},
+
+    "robustness": {"type": "object", "additionalProperties": false,
+      "description": "DECLARED expectations from the literature. Measured robustness lives in calibration reports, never here.",
+      "properties": {"declared": {"type": "array", "items": {"type": "object",
+        "required": ["transform", "expected"], "additionalProperties": false,
+        "properties": {
+          "transform": {"type": "string",
+            "description": "e.g. paraphrase, translation, truncation, jpeg, crop, resize, noise"},
+          "expected": {"type": "string", "enum": ["survives", "weakens", "defeats", "unknown"]},
+          "notes": {"type": "string"}}}}}},
+
+    "integrations": {"type": "array", "minItems": 1,
+      "description": "How the scheme attaches to serving stacks. A framework can run the scheme iff it exposes the scheme's stage; each entry binds one surface.",
+      "items": {"type": "object", "required": ["surface", "stage", "status"], "additionalProperties": false,
+        "properties": {
+          "surface": {"type": "string",
+            "description": "Registered surface or x- extension. Registered: hf-transformers.generate, hf-transformers.logits-processor, vllm.logits-processor, sglang.logits-processor, tgi.sidecar, llama-cpp.sampler-hook, openai-proxy, hf-diffusers.pipeline-callback, hf-diffusers.component-swap, posthoc.transform",
+            "pattern": "^(hf-transformers\\.generate|hf-transformers\\.logits-processor|vllm\\.logits-processor|sglang\\.logits-processor|tgi\\.sidecar|llama-cpp\\.sampler-hook|openai-proxy|hf-diffusers\\.pipeline-callback|hf-diffusers\\.component-swap|posthoc\\.transform|x-[a-z0-9.-]+)$"},
+          "stage": {"type": "string"},
+          "status": {"type": "string", "enum": ["supported", "planned", "unsupported"]},
+          "adapter": {"type": ["string", "null"],
+            "description": "Package or entry point implementing the binding, e.g. markwright.inference:VLLMLogitsProcessor"},
+          "notes": {"type": "string"}
+        }}},
+
+    "spoofing": {"type": "object", "additionalProperties": false,
+      "properties": {
+        "after_detector_publication": {"type": "string",
+          "enum": ["forgeable", "not_applicable", "resistant"],
+          "description": "forgeable: once the detector or key-derived material is public, marks can be forged and every result must carry spoofing_not_excluded"},
+        "notes": {"type": "string"}
+      }},
+
+    "status": {"type": "string", "enum": ["implemented", "specification-only", "experimental"],
+      "default": "implemented",
+      "description": "specification-only descriptors document a scheme before any adapter exists, so operators can compare schemes they cannot yet run"}
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "owm": "0.1",
+  "kind": "scheme-descriptor",
+  "scheme_id": "dwt-dct",
+  "namespace": "org.invisible-watermark",
+  "version": "0.0.1",
+  "title": "DWT-DCT frequency-domain watermark",
+  "description": "Classic post-hoc frequency-domain embedding: a bit string is written into mid-frequency DWT/DCT coefficients of a finished image. Works on any image from any generator, which is both its strength and its weakness.",
+  "citations": [
+    {
+      "title": "invisible-watermark (the library Stable Diffusion shipped with)",
+      "year": 2021,
+      "url": "https://github.com/ShieldMnt/invisible-watermark"
+    }
+  ],
+  "license": "MIT",
+  "reference_implementations": [
+    {
+      "name": "ShieldMnt/invisible-watermark",
+      "url": "https://github.com/ShieldMnt/invisible-watermark"
+    }
+  ],
+  "modality": "image",
+  "carrier": {
+    "unit": "pixel",
+    "codec": {
+      "type": "raster",
+      "colorspace": "YUV",
+      "bit_depth": 8
+    },
+    "min_units_default": 16384,
+    "constraints": {
+      "min_width": 128,
+      "min_height": 128
+    }
+  },
+  "embedding": {
+    "stage": "posthoc",
+    "description": "Applied to the finished image, after and independent of generation. Any serving stack supports it by construction.",
+    "distortion_free": false
+  },
+  "key_model": {
+    "requires_key_for_detection": true,
+    "publishable_detector": false,
+    "backend_mac_supported": false,
+    "detection_artifact": null,
+    "material": {
+      "shape": "bits[32..256]",
+      "derivation": "hkdf-sha256",
+      "info_template": "markwright/dwt-dct/{key_id}/v{key_version}"
+    }
+  },
+  "detection": {
+    "statistic": {
+      "name": "bit_accuracy",
+      "type": "bit_accuracy",
+      "direction": "higher_is_marked"
+    },
+    "analytic_p": {
+      "available": true,
+      "assumptions": [
+        "independent bit errors under the null (binomial)"
+      ],
+      "guidance": "calibrate"
+    },
+    "needs_model_for_detect": false,
+    "cost": "low"
+  },
+  "parameters": {
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "message_bits"
+      ],
+      "properties": {
+        "message_bits": {
+          "type": "integer",
+          "minimum": 32,
+          "maximum": 256,
+          "default": 32
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "dwtDct",
+            "dwtDctSvd"
+          ],
+          "default": "dwtDct"
+        },
+        "min_units": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 16384
+        }
+      }
+    },
+    "defaults": {
+      "message_bits": 32,
+      "method": "dwtDct"
+    },
+    "notes": {
+      "method": "dwtDctSvd is slower and more robust"
+    }
+  },
+  "robustness": {
+    "declared": [
+      {
+        "transform": "jpeg",
+        "expected": "weakens"
+      },
+      {
+        "transform": "crop",
+        "expected": "defeats"
+      },
+      {
+        "transform": "resize",
+        "expected": "weakens"
+      },
+      {
+        "transform": "screenshot",
+        "expected": "defeats"
+      }
+    ]
+  },
+  "integrations": [
+    {
+      "surface": "posthoc.transform",
+      "stage": "posthoc",
+      "status": "planned",
+      "adapter": null,
+      "notes": "a pipeline step after any generator; no framework coupling at all"
+    }
+  ],
+  "spoofing": {
+    "after_detector_publication": "forgeable",
+    "notes": "embedding is cheap for anyone who knows the key; treat matches as provenance hints, not proof"
+  },
+  "status": "specification-only"
+}

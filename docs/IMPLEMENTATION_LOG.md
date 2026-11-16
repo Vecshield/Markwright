@@ -532,3 +532,69 @@ showing token ids instead of text, and a bare "TypeError: Failed to fetch".
   illustrates the scale.
 - Wordmark underline removed (it had become an <a> for navigation).
 - 106 tests green (samples test now asserts prose, not ids), ruff clean.
+
+### OWM 0.1 — the open standard (commit: owm-spec)
+User asked for an open standard for scheme details and watermark management
+across deployments and repos, extensible to images and other modalities, with
+the data model, tests and extension documentation. Shipped as OWM 0.1 (Open
+Watermark Manifests); Markwright is the reference implementation.
+- DESIGN. Three documents for three parties: scheme descriptor (scheme
+  author), deployment manifest (operator registry; the existing model-config,
+  generalized), repo declaration (model publisher; watermark.owm.json beside
+  the model card). The extension axis is the CARRIER, not the scheme: unit
+  (token/pixel/patch/latent/...), codec (tokenizer/raster/latent-space), and
+  min_units generalize the text-only tokenizer_ref/min_tokens; the statistics
+  layer (null models, calibrated p, bands, correction) is already
+  modality-free and the spec says so. Serving-framework mapping is computable:
+  frameworks expose STAGES (logits, latent_init, component_weights, posthoc),
+  schemes require one, a binding is (surface, stage, adapter); the registered
+  surface vocabulary covers hf-transformers, vLLM, SGLang, TGI, llama.cpp,
+  openai-proxy, hf-diffusers (callback + component swap) and the universal
+  posthoc.transform. Vocabularies are closed with an x- escape hatch so a
+  validator can tell declared extensions from typos.
+- SCHEMAS (normative): schemas/scheme-descriptor.json and
+  schemas/repo-declaration.json are new; model-config.json opened its closed
+  scheme_id enum to a pattern (open standard, dotted namespaces for third
+  parties) and gained modality + optional carrier; verification-result.json
+  gained modality + units{unit,total,scored} with token_count kept as a
+  deprecated text alias. All changes additive; the 106 pre-existing tests
+  pass untouched.
+- DESCRIPTORS. synthid-text.owm.json ships inside markwright (generated FROM
+  the live adapter so params schema and defaults are exactly equal);
+  kgw.owm.json ships inside the kgw package, proving third-party packages
+  carry their own descriptors. Three real image schemes ship as
+  specification-only exemplars under docs/spec/examples/, chosen to exercise
+  every image stage: Stable Signature (component_weights, bit_accuracy,
+  extractor artifact), Tree-Ring (latent_init, distance with
+  lower_is_marked, needs the model for DDIM inversion), DWT-DCT (posthoc,
+  works on any stack, weak against crops and says so).
+- CODE. schemes/descriptors.py discovers descriptors (adapter package first,
+  built-in registry second) and validates against the schema, reporting
+  problems instead of swallowing them. GET /v1/schemes/{id}/descriptor;
+  catalogue entries now carry modality + descriptor_available.
+  GET /v1/configs/{id}/declaration builds the public-safe declaration:
+  config_fingerprint = sha256 over canonical (scheme, version, params, key
+  lineage + version); params included ONLY under public disclosure;
+  spoofing_not_excluded forced true when a detector is published; signed by
+  the deployment Ed25519 identity (AuditChain.sign() added; one identity for
+  anchors, bundles and declarations). CLI: markwright declaration export.
+- TESTS (tests/test_spec.py, 15): normative schemas are valid 2020-12; every
+  shipped descriptor conforms and its params schema is itself valid Schema;
+  ADAPTER-DESCRIPTOR EQUALITY for installed schemes (the drift killer:
+  version, params schema, defaults, publishable_detector, distortion_free,
+  cost); image exemplars cover all three image stages and both units;
+  x- extensions pass where unregistered bare values fail; the binding rule
+  (supported binding stage == embedding stage) holds across all descriptors;
+  endpoints serve conformant documents; declarations are public-safe (no
+  key_ref/lineage/sealed anywhere), signature verifies with the embedded key
+  and fails on tamper; params disclosure flips correctly with detector
+  publication. Suite: 121 passed.
+- DOCS. docs/spec/owm-0.1.md (the standard: concepts, design rules, the three
+  documents, registered vocabularies, conformance levels 1-3, security
+  considerations) and docs/spec/extending.md (three walkthroughs: text scheme
+  via the KGW recipe, the image modality via the three exemplars with the
+  exact list of what an implementation adds, new serving surfaces via the
+  vLLM wrapper template; versioning rules). README and CLAUDE.md link them.
+- Deliberately NOT shipped: an image adapter (torch-heavy, belongs with the
+  robustness-sweep work); OWM extraction into its own repo (right move once a
+  second implementation exists; wrong move today).

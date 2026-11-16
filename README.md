@@ -84,6 +84,8 @@ markwright/
 
 New schemes register the `markwright.schemes` entry point from their own package: the wizard lists them, the registry validates their parameters, and the verify pipeline treats their statistic like any other. `packages/markwright-scheme-kgw` is the worked example.
 
+The data model behind all of this is specified as **OWM 0.1 (Open Watermark Manifests)** in [docs/spec/owm-0.1.md](docs/spec/owm-0.1.md): machine-readable scheme descriptors, deployment manifests, signed repo declarations (`watermark.owm.json` for a model repository), and a binding model that computes which serving stacks can run which schemes. The spec is modality-neutral; [docs/spec/extending.md](docs/spec/extending.md) walks through extending it to images with three real schemes (Stable Signature, Tree-Ring, DWT-DCT) shipped as specification-only descriptors.
+
 ## Honesty rules (enforced in code, not docs)
 
 Every rule below has a test that fails if it regresses: no boolean result fields anywhere; the length and predictability check runs before any statistic; calibrated p-values with bootstrap intervals, never the analytic value alone; Bonferroni (multiple-scan) correction over every configuration scanned; band capping when the calibration cannot resolve the false-positive target; identical visual treatment for "no evidence" and "insufficient evidence", with one hue and no red or green anywhere; a tokenizer mismatch refuses to score instead of guessing; submitted text never stored.

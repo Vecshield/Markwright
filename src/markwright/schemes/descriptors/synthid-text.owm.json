@@ -1,0 +1,227 @@
+{
+  "owm": "0.1",
+  "kind": "scheme-descriptor",
+  "scheme_id": "synthid-text",
+  "namespace": "com.google.deepmind",
+  "version": "0.1.0",
+  "title": "SynthID-Text",
+  "description": "Tournament sampling keyed by pseudo-random g-values over preceding n-grams. Marked text wins more tournaments than chance explains; detection recomputes and averages the g-values over scorable tokens.",
+  "citations": [
+    {
+      "title": "Scalable watermarking for identifying large language model outputs",
+      "venue": "Nature",
+      "year": 2024,
+      "url": "https://www.nature.com/articles/s41586-024-08025-4"
+    }
+  ],
+  "license": "Apache-2.0",
+  "reference_implementations": [
+    {
+      "name": "huggingface/transformers (>=4.46)",
+      "url": "https://github.com/huggingface/transformers"
+    }
+  ],
+  "modality": "text",
+  "carrier": {
+    "unit": "token",
+    "codec": {
+      "type": "tokenizer",
+      "notes": "detection must run with the generation tokenizer; implementations record and compare its fingerprint"
+    },
+    "min_units_default": 50
+  },
+  "embedding": {
+    "stage": "logits",
+    "description": "A logits processor runs the tournament at each sampling step; quality holds because every candidate was already acceptable.",
+    "distortion_free": false
+  },
+  "key_model": {
+    "requires_key_for_detection": true,
+    "publishable_detector": true,
+    "backend_mac_supported": false,
+    "detection_artifact": null,
+    "material": {
+      "shape": "int32[num_keys]",
+      "derivation": "hkdf-sha256",
+      "info_template": "markwright/synthid-text/{key_id}/v{key_version}"
+    }
+  },
+  "detection": {
+    "statistic": {
+      "name": "mean_g",
+      "type": "mean",
+      "direction": "higher_is_marked"
+    },
+    "analytic_p": {
+      "available": true,
+      "assumptions": [
+        "token independence, which real text violates"
+      ],
+      "guidance": "calibrate"
+    },
+    "needs_model_for_detect": false,
+    "cost": "low"
+  },
+  "parameters": {
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "SynthIDTextParams",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ngram_len",
+        "num_keys"
+      ],
+      "properties": {
+        "ngram_len": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 10,
+          "default": 5
+        },
+        "num_keys": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 30,
+          "default": 30,
+          "description": "Tournament depth; keys are derived, not stored"
+        },
+        "context_history_size": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1024
+        },
+        "sampling_table_size": {
+          "type": "integer",
+          "minimum": 2,
+          "default": 65536
+        },
+        "sampling_table_seed": {
+          "type": "integer",
+          "default": 0
+        },
+        "skip_first_ngram_calls": {
+          "type": "boolean",
+          "default": false
+        },
+        "sampling": {
+          "type": "object",
+          "description": "Recorded for reproducibility; applied by the host sampler",
+          "properties": {
+            "temperature": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 1.0
+            },
+            "top_k": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 40
+            },
+            "top_p": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "default": 0.99
+            }
+          }
+        },
+        "detector": {
+          "type": "string",
+          "enum": [
+            "mean",
+            "bayesian"
+          ],
+          "default": "mean"
+        },
+        "min_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 50
+        }
+      }
+    },
+    "defaults": {
+      "ngram_len": 5,
+      "num_keys": 30,
+      "context_history_size": 1024,
+      "sampling_table_size": 65536,
+      "sampling_table_seed": 0,
+      "skip_first_ngram_calls": false,
+      "sampling": {
+        "temperature": 1.0,
+        "top_k": 40,
+        "top_p": 0.99
+      },
+      "detector": "mean",
+      "min_tokens": 50
+    },
+    "notes": {
+      "ngram_len": "context window seeding each tournament",
+      "num_keys": "tournament depth; more layers, stronger per-token signal",
+      "detector": "mean statistic, or a trained Bayesian detector",
+      "sampling": "recorded so a generation run can be reproduced"
+    }
+  },
+  "robustness": {
+    "declared": [
+      {
+        "transform": "paraphrase",
+        "expected": "defeats"
+      },
+      {
+        "transform": "translation",
+        "expected": "defeats"
+      },
+      {
+        "transform": "truncation",
+        "expected": "weakens",
+        "notes": "the statistic holds; evidence mass shrinks with scored tokens"
+      },
+      {
+        "transform": "low-entropy content",
+        "expected": "weakens",
+        "notes": "repeated contexts are masked out of scoring"
+      }
+    ]
+  },
+  "integrations": [
+    {
+      "surface": "hf-transformers.generate",
+      "stage": "logits",
+      "status": "supported",
+      "adapter": "markwright[synthid]",
+      "notes": "watermarking_config= on generate()"
+    },
+    {
+      "surface": "hf-transformers.logits-processor",
+      "stage": "logits",
+      "status": "supported",
+      "adapter": "markwright.schemes.synthid:SynthIDTextAdapter#apply"
+    },
+    {
+      "surface": "vllm.logits-processor",
+      "stage": "logits",
+      "status": "supported",
+      "adapter": "markwright.inference:VLLMLogitsProcessor",
+      "notes": "interface-tested against a simulated sampler; live vLLM needs Linux/CUDA"
+    },
+    {
+      "surface": "sglang.logits-processor",
+      "stage": "logits",
+      "status": "planned",
+      "adapter": null
+    },
+    {
+      "surface": "tgi.sidecar",
+      "stage": "logits",
+      "status": "planned",
+      "adapter": null
+    }
+  ],
+  "spoofing": {
+    "after_detector_publication": "forgeable",
+    "notes": "the published detector contains the derived key list; results under a public-detector lineage carry spoofing_not_excluded permanently"
+  },
+  "status": "implemented"
+}

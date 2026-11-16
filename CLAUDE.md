@@ -46,8 +46,9 @@ markwright/
 ├── CLAUDE.md                  # this contract
 ├── pyproject.toml             # extras: synthid, markllm, vault, aws, gcp, azure, postgres, dev
 ├── docker-compose.yml         # profiles: dev | onprem | provider
-├── schemas/                   # JSON Schema 2020-12 — the API/CLI/SDK wire contract.
-│                              #   Loaded by tests; responses MUST validate against these.
+├── schemas/                   # JSON Schema 2020-12 — the API/CLI/SDK wire contract AND the
+│                              #   OWM 0.1 spec (scheme-descriptor, repo-declaration). Loaded by
+│                              #   tests; responses MUST validate against these.
 ├── src/markwright/
 │   ├── schemes/               # base.py = SchemeAdapter Protocol (§5); synthid.py = only real adapter.
 │   │                          #   New schemes are NEW PACKAGES via entry point `markwright.schemes`,
@@ -70,6 +71,8 @@ markwright/
 ├── dashboard/                 # React+TS (Vite): Verify + Registry screens; plain fetch client
 ├── deploy/                    # Dockerfile, compose assets, Helm chart skeleton
 └── docs/
+    ├── spec/                  # OWM 0.1: the open standard (owm-0.1.md, extending.md,
+    │                          #   examples/ = specification-only image descriptors)
     ├── poc-plan.md            # the plan being executed (milestones A/B, phases 0–7)
     ├── IMPLEMENTATION_LOG.md  # append-only session log — READ THIS FIRST when resuming
     ├── quickstart.md          # 15-minute laptop walkthrough

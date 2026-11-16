@@ -1,0 +1,160 @@
+{
+  "owm": "0.1",
+  "kind": "scheme-descriptor",
+  "scheme_id": "stable-signature",
+  "namespace": "com.meta",
+  "version": "0.0.1",
+  "title": "Stable Signature",
+  "description": "Fine-tunes the latent decoder (VAE) of a diffusion model so every decoded image carries a fixed binary message, recovered by a trained extractor network. The key is the message; the carrier is the decoder itself.",
+  "citations": [
+    {
+      "title": "The Stable Signature: Rooting Watermarks in Latent Diffusion Models",
+      "venue": "ICCV",
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2303.15435"
+    }
+  ],
+  "license": "CC-BY-NC-4.0",
+  "reference_implementations": [
+    {
+      "name": "facebookresearch/stable_signature",
+      "url": "https://github.com/facebookresearch/stable_signature"
+    }
+  ],
+  "modality": "image",
+  "carrier": {
+    "unit": "pixel",
+    "codec": {
+      "type": "raster",
+      "colorspace": "RGB",
+      "bit_depth": 8
+    },
+    "min_units_default": 65536,
+    "constraints": {
+      "min_width": 256,
+      "min_height": 256,
+      "notes": "extractor accuracy degrades below the training resolution"
+    }
+  },
+  "embedding": {
+    "stage": "component_weights",
+    "description": "The watermark lives in fine-tuned VAE-decoder weights; generation needs no per-request hook at all, which is why the integration is a component swap rather than a callback.",
+    "distortion_free": false
+  },
+  "key_model": {
+    "requires_key_for_detection": false,
+    "publishable_detector": true,
+    "backend_mac_supported": false,
+    "detection_artifact": "trained extractor network (HiDDeN-style decoder)",
+    "material": {
+      "shape": "bits[48]",
+      "derivation": "hkdf-sha256",
+      "info_template": "markwright/stable-signature/{key_id}/v{key_version}"
+    }
+  },
+  "detection": {
+    "statistic": {
+      "name": "bit_accuracy",
+      "type": "bit_accuracy",
+      "direction": "higher_is_marked"
+    },
+    "analytic_p": {
+      "available": true,
+      "assumptions": [
+        "independent bit errors under the null (binomial)"
+      ],
+      "guidance": "calibrate"
+    },
+    "needs_model_for_detect": false,
+    "cost": "low"
+  },
+  "parameters": {
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "message_bits"
+      ],
+      "properties": {
+        "message_bits": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 64,
+          "default": 48
+        },
+        "decoder_checkpoint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "fingerprint of the fine-tuned VAE decoder"
+        },
+        "extractor_checkpoint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "min_units": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 65536
+        }
+      }
+    },
+    "defaults": {
+      "message_bits": 48,
+      "min_units": 65536
+    },
+    "notes": {
+      "message_bits": "message length; longer messages trade robustness for capacity",
+      "decoder_checkpoint": "the marked component; its fingerprint belongs in the deployment manifest artifacts"
+    }
+  },
+  "robustness": {
+    "declared": [
+      {
+        "transform": "jpeg",
+        "expected": "survives",
+        "notes": "trained against compression"
+      },
+      {
+        "transform": "crop",
+        "expected": "survives"
+      },
+      {
+        "transform": "resize",
+        "expected": "survives"
+      },
+      {
+        "transform": "regeneration (diffusion purification)",
+        "expected": "defeats"
+      },
+      {
+        "transform": "heavy noise",
+        "expected": "weakens"
+      }
+    ]
+  },
+  "integrations": [
+    {
+      "surface": "hf-diffusers.component-swap",
+      "stage": "component_weights",
+      "status": "planned",
+      "adapter": null,
+      "notes": "swap pipeline.vae.decoder for the fine-tuned checkpoint; record both fingerprints"
+    },
+    {
+      "surface": "posthoc.transform",
+      "stage": "posthoc",
+      "status": "unsupported",
+      "notes": "the mark is generation-time by construction"
+    }
+  ],
+  "spoofing": {
+    "after_detector_publication": "forgeable",
+    "notes": "a public extractor lets anyone embed a matching message with their own encoder"
+  },
+  "status": "specification-only"
+}

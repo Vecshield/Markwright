@@ -194,10 +194,24 @@ def list_schemes(_=Depends(require("registry.read"))):
     return out
 
 
+@app.get("/v1/schemes/{scheme_id}/descriptor")
+def scheme_descriptor(scheme_id: str, _=Depends(require("registry.read"))):
+    """The OWM 0.1 descriptor for an installed scheme (schemas/scheme-descriptor.json)."""
+    from markwright.schemes.descriptors import descriptor_for, descriptor_problems
+
+    if scheme_id not in schemes.available():
+        raise HTTPException(404, f"scheme '{scheme_id}' is not installed")
+    doc = descriptor_for(scheme_id)
+    if doc is None:
+        raise HTTPException(404, descriptor_problems(scheme_id))
+    return doc
+
+
 @app.get("/v1/schemes/catalogue")
 def scheme_catalogue(_=Depends(require("registry.read"))):
     """Every scheme Markwright can describe, installed here or not: what it does,
     how it marks and detects, its trade-offs, and the parameters it takes."""
+    from markwright.schemes.descriptors import descriptor_for
     from markwright.schemes.explain import catalogue
 
     installed = set(schemes.available())
@@ -208,6 +222,9 @@ def scheme_catalogue(_=Depends(require("registry.read"))):
             e["scheme_version"] = a.scheme_version
             e["capabilities"] = a.capabilities.__dict__
             e["defaults"] = a.default_params()
+        desc = descriptor_for(e["scheme_id"])
+        e["modality"] = (desc or {}).get("modality", "text")
+        e["descriptor_available"] = desc is not None
     return entries
 
 
@@ -840,6 +857,84 @@ def list_results(since: str | None = None, band: str | None = None, model: str |
     requests; auditors and admins see the deployment's (design §8.1)."""
     own = p[0] if p[1] in ("verifier", "operator") else None
     return STATE["registry"].list_results(since=since, band=band, model_id=model, requested_by=own)
+
+
+# ---- OWM repo declaration (watermark.owm.json for the model's repository) -----------------
+@app.get("/v1/configs/{config_id}/declaration")
+def repo_declaration(config_id: str, p=Depends(require("registry.read"))):
+    """The public-safe OWM declaration for a configuration: fingerprints and
+    verification pointers only. Parameters appear only under an explicitly
+    public disclosure, and key references never appear at all. Signed with the
+    deployment identity so a copy in a model repo can be pinned to its source."""
+    import hashlib
+    import json as _json
+
+    reg: RegistryStore = STATE["registry"]
+    cfg = reg.get_config(config_id)
+    if not cfg:
+        raise HTTPException(404)
+    key_row = reg.get_key(cfg["key_ref"])
+    public = cfg["labels"].get("disclosure") == "public-detector"
+
+    canon = _json.dumps({
+        "scheme_id": cfg["scheme_id"], "scheme_version": cfg["scheme_version"],
+        "params": cfg["scheme_params"], "key_lineage": key_row["lineage_id"],
+        "key_version": key_row["key_version"],
+    }, sort_keys=True, separators=(",", ":")).encode()
+    fingerprint = "sha256:" + hashlib.sha256(canon).hexdigest()
+
+    detector = None
+    if cfg["detector_ref"]:
+        blob = _json.loads(STATE["artifacts"].get(cfg["detector_ref"]))
+        detector = {"uri": cfg["detector_ref"], "sha256": blob["sha256"]}
+
+    artifacts: dict[str, str] = {}
+    tok_hash = cfg["verification_defaults"].get("tokenizer_hash")
+    if tok_hash:
+        artifacts["tokenizer"] = f"sha256:{tok_hash}"
+    mv = reg.get_model_version(cfg["model_id"], cfg["model_version"])
+    if mv and mv.get("model_fingerprint"):
+        artifacts["weights"] = mv["model_fingerprint"]
+
+    doc: dict[str, Any] = {
+        "owm": "0.1",
+        "kind": "repo-declaration",
+        "subject": {
+            "uri": cfg["labels"].get("subject_uri",
+                                     f"urn:markwright:model/{cfg['model_id']}@{cfg['model_version']}"),
+            "revision": None,
+            "artifacts": artifacts,
+        },
+        "marking": [{
+            "modality": cfg.get("modality") or "text",
+            "scheme_id": cfg["scheme_id"],
+            "scheme_version": cfg["scheme_version"],
+            "config_fingerprint": fingerprint,
+            "params": cfg["scheme_params"] if public else None,
+            "active_from": cfg["generate_from"],
+            "active_until": cfg["generate_until"],
+            "verification": {
+                "detector": detector,
+                "endpoint": os.environ.get("MARKWRIGHT_PUBLIC_VERIFY_URL") or None,
+                "bundle": None,
+            },
+            "spoofing_not_excluded": bool(public or detector),
+        }],
+        "policy": {"fpr_target": STATE["policy"]["fpr_target"], "contact": None},
+        "generated_by": {"name": "markwright", "version": __version__},
+        "generated_at": datetime.now(UTC).isoformat(),
+        "public_key_hex": None,
+        "signature": None,
+    }
+    unsigned = {k: v for k, v in doc.items() if k not in ("signature", "public_key_hex")}
+    payload = _json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+    doc["signature"] = STATE["audit"].sign(payload)
+    pub = STATE["audit"].public_key_bytes
+    doc["public_key_hex"] = pub.hex() if pub else None
+    STATE["audit"].append({"principal": p[0], "role": p[1]}, "export.evidence",
+                          {"kind": "declaration", "id": config_id},
+                          details={"fingerprint": fingerprint, "public_params": str(public)})
+    return doc
 
 
 # ---- offline bundle export (design §7.5; POC phase 5) -------------------------------------

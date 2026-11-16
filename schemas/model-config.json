@@ -47,15 +47,8 @@
     },
     "scheme_id": {
       "type": "string",
-      "enum": [
-        "synthid-text",
-        "kgw",
-        "unigram",
-        "kuditipudi-exp",
-        "kuditipudi-its",
-        "aaronson-expmin",
-        "cgz-undetectable"
-      ]
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$",
+      "description": "Open identifier matching a scheme descriptor; the closed enum of early drafts is replaced by the descriptor registry"
     },
     "scheme_version": {
       "type": "string"
@@ -149,6 +142,37 @@
     },
     "created_by": {
       "type": "string"
+    },
+    "modality": {
+      "type": "string",
+      "pattern": "^(text|image|audio|video|x-[a-z0-9-]+)$",
+      "default": "text"
+    },
+    "carrier": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Carrier binding for non-text or explicitly-declared text configs. For text, tokenizer_ref remains the compact form; carrier.codec generalizes it.",
+      "properties": {
+        "unit": {
+          "type": "string"
+        },
+        "codec": {
+          "type": "object"
+        },
+        "min_units": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "constraints": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
-  }
+  },
+  "description": "OWM 0.1 deployment manifest: one row per (model, model_version, config_version). Known catalogued scheme ids: synthid-text, kgw, unigram, kuditipudi-exp, kuditipudi-its, aaronson-expmin, cgz-undetectable; third-party schemes use dotted namespaced ids and are equally valid."
 }

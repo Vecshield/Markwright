@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://markwright.dev/schemas/repo-declaration.json",
+  "title": "RepoDeclaration",
+  "description": "OWM 0.1 repo declaration (conventional filename: watermark.owm.json). A model publisher places this in the model repository (Hugging Face or elsewhere) to declare that outputs are watermarked and how a third party can verify. It is the PUBLIC-SAFE subset of a deployment's configuration: fingerprints and verification pointers, never key references or sealed material, and parameters only under an explicitly public disclosure.",
+  "type": "object",
+  "required": ["owm", "kind", "subject", "marking"],
+  "additionalProperties": false,
+  "properties": {
+    "owm": {"type": "string", "enum": ["0.1"]},
+    "kind": {"type": "string", "enum": ["repo-declaration"]},
+
+    "subject": {"type": "object", "required": ["uri"], "additionalProperties": false,
+      "description": "What is being declared about. hf:org/name for Hugging Face repos; any URI scheme is allowed.",
+      "properties": {
+        "uri": {"type": "string",
+          "description": "e.g. hf:acme/llm-4b, urn:markwright:model/acme-llm@4.1"},
+        "revision": {"type": ["string", "null"], "description": "commit or tag the declaration applies to"},
+        "artifacts": {"type": "object", "additionalProperties": {"type": "string"},
+          "description": "Named artifact fingerprints, e.g. {tokenizer: sha256:..., weights: sha256:..., vae: sha256:...}. Lets a verifier confirm they hold the artifacts the marking assumed."}
+      }},
+
+    "marking": {"type": "array", "minItems": 1,
+      "description": "One entry per active or historical marking configuration. Multiple entries cover rotation history and multi-modality models.",
+      "items": {"type": "object",
+        "required": ["modality", "scheme_id", "config_fingerprint", "spoofing_not_excluded"],
+        "additionalProperties": false,
+        "properties": {
+          "modality": {"type": "string", "pattern": "^(text|image|audio|video|x-[a-z0-9-]+)$"},
+          "scheme_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$"},
+          "scheme_version": {"type": ["string", "null"]},
+          "config_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$",
+            "description": "Hash of the canonical configuration (scheme, version, parameters, key lineage id and version). Commits the publisher to a configuration without disclosing it."},
+          "params": {"type": ["object", "null"],
+            "description": "Scheme parameters, present ONLY when the publisher has chosen public disclosure; omitted otherwise. Never contains key material in any case."},
+          "active_from": {"type": ["string", "null"], "format": "date-time"},
+          "active_until": {"type": ["string", "null"], "format": "date-time",
+            "description": "null means still marking"},
+          "verification": {"type": "object", "additionalProperties": false,
+            "description": "How a third party verifies. At least one of detector, endpoint or bundle should be present for the declaration to be actionable; a declaration without any is a statement of marking only.",
+            "properties": {
+              "detector": {"type": ["object", "null"], "additionalProperties": false,
+                "properties": {"uri": {"type": "string"}, "sha256": {"type": "string"}},
+                "description": "Published detector artifact (discloses key material for some schemes)"},
+              "endpoint": {"type": ["string", "null"],
+                "description": "A detect-only verification API the publisher operates"},
+              "bundle": {"type": ["object", "null"], "additionalProperties": false,
+                "properties": {"uri": {"type": "string"}, "sha256": {"type": "string"}},
+                "description": "Offline verification bundle (configs + null models + detectors)"}
+            }},
+          "spoofing_not_excluded": {"type": "boolean",
+            "description": "MUST be true whenever a detector or the parameters are public: anyone holding them can forge the mark. Verifiers surface this on every result."}
+        }}},
+
+    "policy": {"type": "object", "additionalProperties": false,
+      "properties": {
+        "fpr_target": {"type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 0.05,
+          "description": "The false-positive target the publisher calibrated against"},
+        "contact": {"type": ["string", "null"]}
+      }},
+
+    "generated_by": {"type": "object", "additionalProperties": false,
+      "properties": {"name": {"type": "string"}, "version": {"type": "string"}}},
+    "generated_at": {"type": ["string", "null"], "format": "date-time"},
+
+    "public_key_hex": {"type": ["string", "null"],
+      "description": "Ed25519 public key of the signing deployment (hex, raw 32 bytes)"},
+    "signature": {"type": ["string", "null"],
+      "description": "Ed25519 signature (hex) over the canonical JSON of this document with signature and public_key_hex removed. Lets a verifier pin the declaration to the deployment that produced it."}
+  }
+}

@@ -232,6 +232,32 @@ def audit_verify(bundle: Path, pubkey: Path = typer.Option(None, "--pubkey",
     raise typer.Exit(0 if ok else 1)
 
 
+# ---- OWM declaration -----------------------------------------------------------------------
+declaration_app = typer.Typer(help="OWM repo declarations (watermark.owm.json)")
+app.add_typer(declaration_app, name="declaration")
+
+
+@declaration_app.command("export")
+def declaration_export(config_id: str,
+                       out: Path = typer.Option(Path("watermark.owm.json"), "--out")):
+    """Export the public-safe, signed declaration for a configuration. Place the
+    file in the model's repository so third parties can discover and verify the
+    marking. Key references never appear; parameters appear only under a public
+    disclosure."""
+    r = _client().get(f"/v1/configs/{config_id}/declaration")
+    if r.status_code != 200:
+        raise typer.Exit(_fail(r))
+    doc = r.json()
+    out.write_text(json.dumps(doc, indent=2) + "\n")
+    m = doc["marking"][0]
+    console.print(f"wrote {out}")
+    console.print(f"  subject      {doc['subject']['uri']}")
+    console.print(f"  scheme       {m['scheme_id']} v{m['scheme_version']}")
+    console.print(f"  fingerprint  {m['config_fingerprint'][:23]}…")
+    console.print(f"  params       {'public' if m['params'] else 'fingerprint only'}")
+    console.print(f"  signed       {'yes (deployment identity)' if doc['signature'] else 'no'}")
+
+
 # ---- detectors / bundles -------------------------------------------------------------------
 @detector_app.command("publish")
 def detector_publish(config_id: str, out: Path = typer.Option(None, "--out")):

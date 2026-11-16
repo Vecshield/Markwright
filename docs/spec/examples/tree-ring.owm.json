@@ -1,0 +1,144 @@
+{
+  "owm": "0.1",
+  "kind": "scheme-descriptor",
+  "scheme_id": "tree-ring",
+  "namespace": "edu.umd",
+  "version": "0.0.1",
+  "title": "Tree-Ring Watermarks",
+  "description": "Embeds a structured pattern (rings in Fourier space) into the initial noise latent of a diffusion model. Detection inverts the generation (DDIM inversion) to recover the latent and tests for the pattern.",
+  "citations": [
+    {
+      "title": "Tree-Ring Watermarks: Fingerprints for Diffusion Images that are Invisible and Robust",
+      "venue": "NeurIPS",
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2305.20030"
+    }
+  ],
+  "license": "MIT",
+  "reference_implementations": [
+    {
+      "name": "YuxinWenRick/tree-ring-watermark",
+      "url": "https://github.com/YuxinWenRick/tree-ring-watermark"
+    }
+  ],
+  "modality": "image",
+  "carrier": {
+    "unit": "latent",
+    "codec": {
+      "type": "latent-space",
+      "notes": "units are latent tensor positions; detection operates in the model's latent space, not on pixels"
+    },
+    "min_units_default": 4096
+  },
+  "embedding": {
+    "stage": "latent_init",
+    "description": "The initial Gaussian noise is replaced by key-seeded noise whose Fourier transform carries the ring pattern. Sampling proceeds unchanged afterwards.",
+    "distortion_free": false
+  },
+  "key_model": {
+    "requires_key_for_detection": true,
+    "publishable_detector": false,
+    "backend_mac_supported": false,
+    "detection_artifact": "the generating model itself (for DDIM inversion)",
+    "material": {
+      "shape": "uint64",
+      "derivation": "hkdf-sha256",
+      "info_template": "markwright/tree-ring/{key_id}/v{key_version}"
+    }
+  },
+  "detection": {
+    "statistic": {
+      "name": "ring_distance",
+      "type": "distance",
+      "direction": "lower_is_marked"
+    },
+    "analytic_p": {
+      "available": false,
+      "assumptions": [],
+      "guidance": "calibrate"
+    },
+    "needs_model_for_detect": true,
+    "cost": "high"
+  },
+  "parameters": {
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ring_count": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10
+        },
+        "radius": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10
+        },
+        "channel": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "inversion_steps": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 50
+        },
+        "min_units": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 4096
+        }
+      }
+    },
+    "defaults": {
+      "ring_count": 10,
+      "radius": 10,
+      "inversion_steps": 50
+    },
+    "notes": {
+      "inversion_steps": "detection cost dial: more steps, better inversion, slower verify"
+    }
+  },
+  "robustness": {
+    "declared": [
+      {
+        "transform": "jpeg",
+        "expected": "survives"
+      },
+      {
+        "transform": "crop",
+        "expected": "weakens"
+      },
+      {
+        "transform": "rotation",
+        "expected": "survives"
+      },
+      {
+        "transform": "regeneration (diffusion purification)",
+        "expected": "weakens"
+      }
+    ]
+  },
+  "integrations": [
+    {
+      "surface": "hf-diffusers.pipeline-callback",
+      "stage": "latent_init",
+      "status": "planned",
+      "adapter": null,
+      "notes": "supply latents= to the pipeline from the key-seeded generator"
+    },
+    {
+      "surface": "posthoc.transform",
+      "stage": "posthoc",
+      "status": "unsupported"
+    }
+  ],
+  "spoofing": {
+    "after_detector_publication": "not_applicable",
+    "notes": "detection needs the key and the model; nothing stranger-runnable exists"
+  },
+  "status": "specification-only"
+}

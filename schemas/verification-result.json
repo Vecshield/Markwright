@@ -194,6 +194,37 @@
         "string",
         "null"
       ]
+    },
+    "modality": {
+      "type": "string",
+      "pattern": "^(text|image|audio|video|x-[a-z0-9-]+)$",
+      "default": "text"
+    },
+    "units": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Modality-neutral size accounting. For text deployments units.total == token_count; token_count and scored_token_count remain for 0.x compatibility and are deprecated aliases.",
+      "required": [
+        "unit",
+        "total",
+        "scored"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scored": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

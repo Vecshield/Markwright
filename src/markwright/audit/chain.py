@@ -54,6 +54,14 @@ class AuditChain:
     def head(self) -> str:
         return self.entries[-1]["entry_hash"] if self.entries else GENESIS
 
+    def sign(self, data: bytes) -> str | None:
+        """Ed25519 signature (hex) with the deployment identity, or None when
+        the chain has no signing key. Used for audit anchors, evidence bundles
+        and OWM repo declarations alike: one identity, one verification story."""
+        if self._sk is None:
+            return None
+        return self._sk.sign(data).hex()
+
     @property
     def public_key_bytes(self) -> bytes | None:
         if self._sk is None:

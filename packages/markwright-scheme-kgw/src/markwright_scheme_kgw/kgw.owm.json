@@ -1,0 +1,197 @@
+{
+  "owm": "0.1",
+  "kind": "scheme-descriptor",
+  "scheme_id": "kgw",
+  "namespace": "edu.umd",
+  "version": "0.1.0",
+  "title": "KGW green-list",
+  "description": "A context-derived seed splits the vocabulary into a green list; the sampler biases green tokens by delta. Detection counts green tokens and reports the z-score of the excess over the expected gamma share.",
+  "citations": [
+    {
+      "title": "A Watermark for Large Language Models",
+      "venue": "ICML",
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2301.10226"
+    }
+  ],
+  "license": "Apache-2.0",
+  "reference_implementations": [
+    {
+      "name": "huggingface/transformers",
+      "url": "https://github.com/huggingface/transformers"
+    },
+    {
+      "name": "THU-BPM/MarkLLM",
+      "url": "https://github.com/THU-BPM/MarkLLM"
+    }
+  ],
+  "modality": "text",
+  "carrier": {
+    "unit": "token",
+    "codec": {
+      "type": "tokenizer",
+      "notes": "green lists are per-vocabulary; vocab_size must match the tokenizer"
+    },
+    "min_units_default": 50
+  },
+  "embedding": {
+    "stage": "logits",
+    "description": "Fixed logit bias on the context-seeded green list.",
+    "distortion_free": false
+  },
+  "key_model": {
+    "requires_key_for_detection": true,
+    "publishable_detector": false,
+    "backend_mac_supported": false,
+    "detection_artifact": null,
+    "material": {
+      "shape": "uint63",
+      "derivation": "hkdf-sha256",
+      "info_template": "markwright/kgw/{key_id}/v{key_version}"
+    }
+  },
+  "detection": {
+    "statistic": {
+      "name": "kgw_z",
+      "type": "z_score",
+      "direction": "higher_is_marked"
+    },
+    "analytic_p": {
+      "available": true,
+      "assumptions": [
+        "token independence, which real text violates"
+      ],
+      "guidance": "calibrate"
+    },
+    "needs_model_for_detect": false,
+    "cost": "low"
+  },
+  "parameters": {
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "KGWParams",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gamma",
+        "delta",
+        "vocab_size"
+      ],
+      "properties": {
+        "gamma": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1,
+          "default": 0.25,
+          "description": "green-list fraction of the vocabulary"
+        },
+        "delta": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 2.0,
+          "description": "logit bias added to green tokens; quality cost grows with it"
+        },
+        "seeding_scheme": {
+          "type": "string",
+          "enum": [
+            "lefthash",
+            "selfhash"
+          ],
+          "default": "lefthash"
+        },
+        "context_width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "default": 1
+        },
+        "vocab_size": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "green lists are per-vocabulary; MUST match the tokenizer"
+        },
+        "bos_token_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "default": null,
+          "description": "stripped by the detector if leading; default vocab_size-1 (= gpt2 eos/bos)"
+        },
+        "ignore_repeated_ngrams": {
+          "type": "boolean",
+          "default": true
+        },
+        "z_threshold": {
+          "type": "number",
+          "default": 4.0,
+          "description": "advisory only; Markwright bands come from the calibrated null model"
+        },
+        "min_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 50
+        }
+      }
+    },
+    "defaults": {
+      "gamma": 0.25,
+      "delta": 2.0,
+      "seeding_scheme": "lefthash",
+      "context_width": 1,
+      "vocab_size": 50257,
+      "bos_token_id": null,
+      "ignore_repeated_ngrams": true,
+      "z_threshold": 4.0,
+      "min_tokens": 50
+    },
+    "notes": {
+      "gamma": "green-list fraction of the vocabulary",
+      "delta": "the quality/detectability dial",
+      "seeding_scheme": "how the seed derives from context",
+      "vocab_size": "must match the tokenizer"
+    }
+  },
+  "robustness": {
+    "declared": [
+      {
+        "transform": "paraphrase",
+        "expected": "defeats"
+      },
+      {
+        "transform": "truncation",
+        "expected": "weakens"
+      },
+      {
+        "transform": "repeated n-grams",
+        "expected": "weakens",
+        "notes": "repeated n-grams are skipped, deflating scored tokens honestly"
+      }
+    ]
+  },
+  "integrations": [
+    {
+      "surface": "hf-transformers.generate",
+      "stage": "logits",
+      "status": "supported",
+      "adapter": "markwright-scheme-kgw[torch]"
+    },
+    {
+      "surface": "hf-transformers.logits-processor",
+      "stage": "logits",
+      "status": "supported",
+      "adapter": "markwright_scheme_kgw:KGWAdapter#apply"
+    },
+    {
+      "surface": "vllm.logits-processor",
+      "stage": "logits",
+      "status": "supported",
+      "adapter": "markwright.inference:VLLMLogitsProcessor"
+    }
+  ],
+  "spoofing": {
+    "after_detector_publication": "not_applicable",
+    "notes": "no publishable detector exists: the green list IS the key. Third-party verification requires a detect-only service or a verification-key lineage."
+  },
+  "status": "implemented"
+}
