@@ -18,7 +18,7 @@ export default function App() {
   return (
     <>
       <header>
-        <h1>Markwright</h1>
+        <img src="/brand/wordmark-horizontal-light.svg" alt="Markwright" className="wordmark" />
         <nav>
           <a
             href="#verify"

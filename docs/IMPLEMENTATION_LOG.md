@@ -368,3 +368,37 @@ async jobs (arq/APScheduler), Alembic, SDKs, Helm templates, dashboard
 screens 3–7, Unigram/Kuditipudi schemes. Suggested next: calibration
 robustness sweeps (fills min_detectable_tokens, the one null field on every
 result card) or X25519 sealing (closes the MVP's one security shortcut).
+
+### Repo polish — brand kit + Vecshield-style presentation (commit: polish-brand)
+Context: Markwright keeps its name and moves under the Vecshield org
+(github.com/Vecshield). Polish takes the presentation conventions from the
+vecshield repo (minimal badges, logo-first README, problem-statement hook,
+early "Try it", an explicit "What this does not do" section, data-residency
+messaging, architecture tree, CONTRIBUTING/SECURITY/CODE_OF_CONDUCT) and the
+visual identity from the Markwright brand kit the user supplied
+(Markwright_Complete_Assets_2026.zip — guide, logos, favicons, banners, theme
+tokens; the kit's integrity rules mirror the product honesty rules).
+- `assets/brand/`: vendored subset (github-readme banner svg+png, social/og
+  pngs, wordmarks, symbol, tokens.css/json, BRAND_GUIDE.md). Full kit stays
+  outside the repo.
+- README rewritten in the house style: banner, 4 badges (incl. a "not an AI
+  detector" badge — the anti-claim IS the positioning), hook, 2-minute
+  "Try it" via demo.sh, "What you get", "What this does not do",
+  "Your text stays yours" (residency), architecture tree with the
+  schemes-are-packages callout, honesty rules, community links, status.
+- CONTRIBUTING.md (dev setup, tiers incl. infra containers, review rules,
+  phased workflow, DCO), CODE_OF_CONDUCT.md (Contributor Covenant 2.1 + a
+  project-specific no-surveillance clause), SECURITY.md upgraded from stub to
+  a real policy with severity tiers specific to the product's promises
+  (key-material escape = P0, text storage = P0, audit forgery/honesty bypass
+  = P1, RBAC/OIDC = P2; watermark removal explicitly out of scope).
+- Dashboard rebrand to the kit's Frost theme: brand favicons + webmanifest in
+  dashboard/public, wordmark in the header, palette switched to the kit's
+  exact evidenceBands tokens (strong #2463C7 → weak #98CFFF, blue intensity
+  only). ONE deliberate deviation from the kit, recorded here: the kit gives
+  no_evidence its own tint; design §8.3 and the kit's own principle no. 2
+  require no_evidence and insufficient_evidence to be IDENTICAL — both use
+  #C5E6FF with ink text.
+- Verified live in the browser: both screens render under the new theme; a
+  text-path verify of digit soup over both schemes correctly returned
+  no_evidence with Bonferroni + caveats (the honest path, by accident).

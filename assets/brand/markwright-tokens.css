@@ -1,0 +1,60 @@
+/* Markwright — provenance-first UI theme | CSS variables */
+:root, [data-theme="midnight"] {
+  color-scheme: dark;
+  --mw-bg: #061326;
+  --mw-surface: #0B213A;
+  --mw-elevated: #102B49;
+  --mw-border: #284769;
+  --mw-text: #EAF5FF;
+  --mw-muted: #92A9C6;
+  --mw-primary: #3B82F6;
+  --mw-primary-hover: #60A5FA;
+  --mw-highlight: #65D6F8;
+  --mw-focus: #A5E8FF;
+  --mw-shadow: 0 16px 60px #02091266;
+  --mw-radius: 14px;
+  --mw-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mw-mono: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+}
+[data-theme="frost"] {
+  color-scheme: light;
+  --mw-bg: #F5F9FE;
+  --mw-surface: #FFFFFF;
+  --mw-elevated: #E8F2FD;
+  --mw-border: #CADCEE;
+  --mw-text: #0B1F39;
+  --mw-muted: #57718D;
+  --mw-primary: #2563EB;
+  --mw-primary-hover: #1D4ED8;
+  --mw-highlight: #176FC1;
+  --mw-focus: #296FBE;
+  --mw-shadow: 0 16px 45px #45699218;
+}
+[data-theme="ocean"] {
+  color-scheme: dark;
+  --mw-bg: #061A2B;
+  --mw-surface: #0B2C44;
+  --mw-elevated: #103A56;
+  --mw-border: #286078;
+  --mw-text: #EAFBFF;
+  --mw-muted: #A0C4D4;
+  --mw-primary: #2586CD;
+  --mw-primary-hover: #38BDF8;
+  --mw-highlight: #6CE2F5;
+  --mw-focus: #A6EDFC;
+  --mw-shadow: 0 16px 60px #01111D66;
+}
+/* Strength is an ordered SINGLE-HUE scale, not green/red good/bad judgment. */
+:root { --mw-evidence-0: #C5E6FF; --mw-evidence-1: #98CFFF; --mw-evidence-2: #4E9AF2; --mw-evidence-3: #2463C7; }
+.mw-app { background:var(--mw-bg); color:var(--mw-text); font-family:var(--mw-font); }
+.mw-card { background:var(--mw-surface); border:1px solid var(--mw-border); border-radius:var(--mw-radius); box-shadow:var(--mw-shadow); }
+.mw-button { background:var(--mw-primary); color:#fff; border:0; border-radius:10px; padding:.78rem 1.15rem; font:600 14px var(--mw-font); cursor:pointer; }
+.mw-button:hover { background:var(--mw-primary-hover); }
+.mw-button:focus-visible { outline:3px solid var(--mw-focus); outline-offset:3px; }
+.mw-muted { color:var(--mw-muted); }
+.mw-evidence-band { display:flex; gap:6px; }
+.mw-evidence-band span { flex:1; height:8px; border-radius:6px; }
+.mw-evidence-band span:nth-child(1) { background:var(--mw-evidence-0); }
+.mw-evidence-band span:nth-child(2) { background:var(--mw-evidence-1); }
+.mw-evidence-band span:nth-child(3) { background:var(--mw-evidence-2); }
+.mw-evidence-band span:nth-child(4) { background:var(--mw-evidence-3); }

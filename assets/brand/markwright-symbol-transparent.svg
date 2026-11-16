@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><defs>
+    <linearGradient id="markGrad" x1="0%" x2="100%" y1="100%" y2="0%"><stop offset="0%" stop-color="#2563EB"/><stop offset="52%" stop-color="#3B82F6"/><stop offset="100%" stop-color="#65D6F8"/></linearGradient>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#0A1A35"/><stop offset="100%" stop-color="#050D1C"/></linearGradient>
+    <linearGradient id="panelGrad" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#122D51"/><stop offset="100%" stop-color="#08182F"/></linearGradient>
+    <linearGradient id="heroWash" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#071A34"/><stop offset="75%" stop-color="#061020"/><stop offset="100%" stop-color="#112A4B"/></linearGradient>
+    <radialGradient id="halo"><stop stop-color="#246CDE" stop-opacity=".25"/><stop offset="100%" stop-color="#2365BE" stop-opacity="0"/></radialGradient>
+    <linearGradient id="ice" x1="0" x2="1"><stop stop-color="#E7F5FF"/><stop offset="100%" stop-color="#A7CFFF"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="11"/></filter>
+    <filter id="softGlow"><feGaussianBlur stdDeviation="4"/></filter>
+    <pattern id="dots" width="31" height="31" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#6BA8F8" fill-opacity=".16"/></pattern>
+    <pattern id="gridLines" width="55" height="55" patternUnits="userSpaceOnUse"><path d="M55 0H0V55" stroke="#9CC4F0" stroke-opacity=".055" stroke-width="1" fill="none"/></pattern>
+    </defs><g transform="translate(0 0) scale(1.0)"><path d="M28 88V35L59 68L91 35V88" fill="none" stroke="url(#markGrad)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M28 37L59 68" fill="none" stroke="#99E9FF" stroke-opacity=".58" stroke-width="3.1" stroke-linecap="round"/>
+        <rect x="86" y="30" width="10" height="10" rx="3" fill="#D3F7FF"/>
+        <circle cx="59" cy="68" r="3.5" fill="#DFFAFF"/></g></svg>

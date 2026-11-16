@@ -62,6 +62,7 @@ markwright/
 │   ├── cli/                   # typer CLI (thin API client + offline core imports)
 │   └── jobs/                  # background jobs (v1: arq/APScheduler; currently stub)
 ├── packages/                  # separate scheme packages (markwright-scheme-kgw) — the §12 architecture test
+├── assets/brand/              # vendored brand kit subset (banner, logos, tokens, BRAND_GUIDE.md)
 ├── data/null/                 # bundled starter null corpora (small, provisional-grade; see README there)
 ├── hooks/                     # inference-side example scripts (HF generate, vLLM); logic in markwright.inference
 ├── tests/                     # three tiers — see "Testing" below

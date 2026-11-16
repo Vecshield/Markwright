@@ -4,16 +4,18 @@
    - FPR target + caveats always rendered, never collapsible */
 
 :root {
-  --ink: #1a1d23;
-  --muted: #5b616e;
-  --line: #e3e5e9;
-  --bg: #fafafa;
+  /* Markwright brand kit, "Frost" theme (assets/brand/tokens.json) */
+  --ink: #0b1f39;
+  --muted: #57708d;
+  --line: #c9dcee;
+  --bg: #f5f9fe;
   --card: #ffffff;
-  /* the single evidence hue (indigo) at varying weight */
-  --hue-strong: #2f3b8f;
-  --hue-moderate: #5a66b8;
-  --hue-weak: #9aa2d6;
-  --hue-none: #70757f;      /* same neutral for no_evidence AND insufficient */
+  --accent: #2563eb;                /* Signal Blue: interactions, never verdicts */
+  /* evidence bands: blue INTENSITY only (kit evidenceBands tokens) */
+  --hue-strong: #2463c7;
+  --hue-moderate: #4e9af2;
+  --hue-weak: #98cfff;
+  --hue-none: #c5e6ff;              /* same treatment for no_evidence AND insufficient */
   --mono: "SF Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
 }
 
@@ -35,14 +37,14 @@ header {
   border-bottom: 1px solid var(--line);
 }
 
-header h1 { font-size: 1.1rem; margin: 0; }
+header .wordmark { height: 26px; display: block; }
 header nav a {
   margin-right: 1rem;
   color: var(--muted);
   text-decoration: none;
   padding-bottom: 2px;
 }
-header nav a.active { color: var(--ink); border-bottom: 2px solid var(--hue-strong); }
+header nav a.active { color: var(--ink); border-bottom: 2px solid var(--accent); }
 header .spacer { flex: 1; }
 header select { font: inherit; padding: 0.2rem 0.4rem; }
 
@@ -69,8 +71,8 @@ textarea {
 button {
   font: inherit;
   padding: 0.45rem 1.1rem;
-  border: 1px solid var(--hue-strong);
-  background: var(--hue-strong);
+  border: 1px solid var(--accent);
+  background: var(--accent);
   color: white;
   border-radius: 6px;
   cursor: pointer;
@@ -92,7 +94,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .band-moderate_evidence { background: var(--hue-moderate); }
 .band-weak_evidence { background: var(--hue-weak); color: var(--ink); }
 /* identical on purpose: absence of evidence is not a different kind of answer */
-.band-no_evidence, .band-insufficient_evidence { background: var(--hue-none); }
+.band-no_evidence, .band-insufficient_evidence { background: var(--hue-none); color: var(--ink); }
 
 .band-reason { margin: 0.75rem 0 0.25rem; }
 
@@ -127,7 +129,7 @@ td.status-active { font-weight: 600; }
   border: 1px solid var(--line);
   color: var(--muted);
 }
-.status-chip.active { border-color: var(--hue-strong); color: var(--hue-strong); }
+.status-chip.active { border-color: var(--accent); color: var(--accent); }
 
 .error { color: #8f2f2f; font-family: var(--mono); font-size: 0.88rem; white-space: pre-wrap; }
 .hint { color: var(--muted); font-size: 0.88rem; }
