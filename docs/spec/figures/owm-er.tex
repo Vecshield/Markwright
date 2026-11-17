@@ -16,7 +16,7 @@
                 fill=gray!8, font=\scriptsize\sffamily},
   att/.style  ={ellipse, draw, dashed, font=\scriptsize\sffamily,
                 inner sep=1.5pt, fill=white},
-  key/.style  ={att, font=\scriptsize\sffamily\underline},
+  key/.style  ={att},   % ER convention: key attributes underlined in the label
   lbl/.style  ={font=\scriptsize\sffamily, inner sep=1pt, fill=white},
   link/.style ={-, thick}]
 
@@ -60,32 +60,38 @@
 \draw[link] (sup.south east) -- node[lbl,right]{(0,1)} (cfg.north east);
 
 % ---------------- ISA: key specialisation ----------------
-\node[isosceles triangle, draw, shape border rotate=270, minimum width=9mm,
-      inner sep=1pt, font=\tiny\sffamily, right=26mm of key] (isa) {\rotatebox{90}{ISA}};
-\node[ent, above right=3mm and 6mm of isa] (gk) {Generation\\Key};
-\node[ent, below right=3mm and 6mm of isa] (sk) {Signing\\Key};
-\draw[link] (key) -- (isa);
+\node[isosceles triangle, draw, shape border rotate=270, minimum width=13mm,
+      minimum height=7mm, inner sep=0pt, font=\scriptsize\sffamily,
+      right=30mm of key] (isa) {ISA};
+\node[ent, above right=4mm and 7mm of isa] (gk) {Generation\\Key};
+\node[ent, below right=4mm and 7mm of isa] (sk) {Signing\\Key};
+\draw[link] (key) -- node[lbl,above,pos=0.55]{\scriptsize disjoint} (isa);
 \draw[link] (isa) -- (gk);
 \draw[link] (isa) -- (sk);
 
 % ---------------- a few discriminating attributes ----------------
-\node[key, above left=7mm and 1mm of desc]  (a1) {scheme\_id};
+\node[key, above left=7mm and 1mm of desc]  (a1) {\underline{scheme\_id}};
 \node[att, above=7mm of desc]               (a2) {modality};
 \node[att, above right=6mm and -4mm of desc](a3) {stage};
 \draw[link] (a1) -- (desc); \draw[link] (a2) -- (desc); \draw[link] (a3) -- (desc);
 
-\node[key, above=16mm of key]               (b1) {key\_id};
-\node[att, above right=12mm and 2mm of key] (b2) {state};
-\node[att, right=4mm of key]                (b3) {lineage\_id};
+\node[key, above=16mm of key]               (b1) {\underline{key\_id}};
+\node[att, above right=10mm and 0mm of key] (b2) {state};
+\node[att, above left=4mm and -8mm of key]  (b3) {lineage\_id};
 \draw[link] (b1) -- (key); \draw[link] (b2) -- (key); \draw[link] (b3) -- (key);
 
-\node[key, left=5mm of cal]   (c1) {run\_id};
+\node[key, left=5mm of cal]   (c1) {\underline{run\_id}};
 \node[att, below=5mm of cal]  (c2) {quality};
 \draw[link] (c1) -- (cal); \draw[link] (c2) -- (cal);
 
 \node[att, right=5mm of res]  (d1) {band};
 \node[att, below right=4mm and 2mm of res] (d2) {caveats};
 \draw[link] (d1) -- (res); \draw[link] (d2) -- (res);
+
+\node[font=\scriptsize\sffamily, align=left, anchor=north west]
+  at ([yshift=-7mm]decl.south west)
+  {Chen notation. Cardinalities are (min,max).\\
+   Audit Entry records every state-changing action, not verification alone.};
 
 \end{tikzpicture}
 \end{document}

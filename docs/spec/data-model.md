@@ -8,6 +8,11 @@ disagree, the JSON Schemas are normative and this is in error.
 Notation: `A → B` total function, `A ⇀ B` partial function, `℘(A)` powerset,
 `A*` finite sequence, `A?` optional (`A ∪ {⊥}`). Attribute access is `e.a`.
 
+![OWM entity-relationship diagram](figures/owm-er.png)
+
+*Figure 1. The seven entities in Chen notation, cardinalities as (min,max).
+Source: [`figures/owm-er.tex`](figures/owm-er.tex), TikZ, compiles standalone.*
+
 ---
 
 ## 1. Base domains
