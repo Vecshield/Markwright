@@ -16,6 +16,15 @@ uv pip install --python .venv/bin/python -e ".[dev,synthid]" -e packages/markwri
 Python ≥ 3.11. Torch/transformers are only needed for the `synthid` extra and
 tier-2 tests — the core, API, stats and tier-1 tests run without them.
 
+For dashboard changes:
+
+```bash
+cd dashboard
+npm ci
+npm test                               # verification UI state regressions
+npm run build                          # TypeScript + production bundle
+```
+
 ## The three test tiers
 
 | Tier | Marker | Needs | Runs |

@@ -132,6 +132,12 @@ export default function Verify() {
     ? Math.round(input.trim().split(/\s+/).filter(Boolean).length * 1.3)
     : (() => { try { return (JSON.parse(input) as number[]).length; } catch { return 0; } })();
 
+  function clearOutcome() {
+    // Evidence belongs only to the submitted input, mode and target.
+    setResult(null);
+    setError(null);
+  }
+
   function loadSample(s: DemoSample) {
     // Prefer readable text; token ids only when there is no prose to show.
     if (s.kind === "text" && s.text) {
@@ -142,14 +148,13 @@ export default function Verify() {
       setInput(JSON.stringify(s.token_ids));
     }
     setActive(s.id);
-    setResult(null);
-    setError(null);
+    clearOutcome();
   }
 
   async function run() {
+    if (busy) return;
     setBusy(true);
-    setError(null);
-    setResult(null);
+    clearOutcome();
     try {
       const fprVal = fpr ? Number(fpr) : undefined;
       setResult(mode === "text"
@@ -177,6 +182,7 @@ export default function Verify() {
           <div className="row">
             {samples.map((s) => (
               <button key={s.id} className={activeSample === s.id ? "" : "ghost"}
+                disabled={busy}
                 onClick={() => loadSample(s)}>
                 {s.label}
               </button>
@@ -199,7 +205,9 @@ export default function Verify() {
       <div className="card">
         <textarea
           value={input}
-          onChange={(e) => { setInput(e.target.value); setActive(null); }}
+          disabled={busy}
+          aria-label={mode === "text" ? "Text to verify" : "Token ids to verify"}
+          onChange={(e) => { setInput(e.target.value); setActive(null); clearOutcome(); }}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && input.trim() && !busy) void run();
           }}
@@ -211,15 +219,18 @@ export default function Verify() {
         />
         <div className="row">
           <label>
-            <input type="radio" checked={mode === "text"} onChange={() => setMode("text")} /> text
+            <input type="radio" checked={mode === "text"} disabled={busy}
+              onChange={() => { setMode("text"); setActive(null); clearOutcome(); }} /> text
           </label>
           <label>
-            <input type="radio" checked={mode === "ids"} onChange={() => setMode("ids")} /> token ids
+            <input type="radio" checked={mode === "ids"} disabled={busy}
+              onChange={() => { setMode("ids"); setActive(null); clearOutcome(); }} /> token ids
           </label>
           <label>
             false-positive target{" "}
             <input style={{ width: "6rem", font: "inherit" }} placeholder="deployment value"
-              value={fpr} onChange={(e) => setFpr(e.target.value)} />{" "}
+              value={fpr} disabled={busy}
+              onChange={(e) => { setFpr(e.target.value); clearOutcome(); }} />{" "}
             <span className="hint">(can only be lowered)</span>
           </label>
           <button onClick={run} disabled={busy || !input.trim()}>

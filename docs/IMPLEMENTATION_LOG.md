@@ -598,3 +598,20 @@ Watermark Manifests); Markwright is the reference implementation.
 - Deliberately NOT shipped: an image adapter (torch-heavy, belongs with the
   robustness-sweep work); OWM extraction into its own repo (right move once a
   second implementation exists; wrong move today).
+
+### 2026-11-17 · Phase 6 follow-up — keep evidence tied to the submitted input
+- The Verify screen clears its previous result and request error when text,
+  input mode or false-positive target changes. Previously a result could remain
+  beside text that had never been verified.
+- Text, mode, target and example controls stay disabled during verification;
+  a failed request unlocks them for retry. The textarea has an accessible name.
+- Added eight UI state regression tests using React's test renderer and Vite's
+  existing TSX loader, an `npm test` command, dashboard CI and contributor setup
+  instructions. The response stub is length-gated, with no detection statistic
+  or p-value; no scheme computation is mocked.
+- Verified: dashboard `npm test` (8 passed), `npm run build`,
+  `.venv/bin/ruff check src tests`, and
+  `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/pytest -q -rs -m 'not slow and not network'`
+  (121 passed, 2 skipped: PostgreSQL and Vault unavailable; 1 deselected).
+- Deferred: infrastructure tests, model downloads and broader dashboard test
+  coverage. No design discrepancy; this preserves the existing evidence rules.
