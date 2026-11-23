@@ -292,10 +292,12 @@ class RegistryStore:
             "SELECT MAX(config_version) AS v FROM configs WHERE model_id=:id AND model_version=:mv",
             {"id": old["model_id"], "mv": old["model_version"]})
         cfg = dict(old)
+        labels = {k: v for k, v in old.get("labels", {}).items() if k != "disclosure"}
         cfg.update({
             "config_id": str(uuid.uuid4()), "config_version": (prev["v"] or 0) + 1,
             "supersedes": old_config_id, "key_ref": new_key_id, "detector_ref": None,
             "status": "active", "generate_from": _now(), "generate_until": None,
+            "labels": labels,
             "created_at": _now(), "created_by": by,
         })
         self._insert_config(cfg)
@@ -303,6 +305,8 @@ class RegistryStore:
 
     def set_detector(self, config_id: str, detector_ref: str) -> dict:
         cfg = self.get_config(config_id)
+        if cfg is None:
+            raise KeyError(config_id)
         labels = {**cfg["labels"], "disclosure": "public-detector"}
         self.db.execute("UPDATE configs SET detector_ref=:ref, labels=:lab WHERE config_id=:id",
                         {"ref": detector_ref, "lab": json.dumps(labels), "id": config_id})

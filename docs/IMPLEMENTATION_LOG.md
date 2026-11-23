@@ -598,3 +598,25 @@ Watermark Manifests); Markwright is the reference implementation.
 - Deliberately NOT shipped: an image adapter (torch-heavy, belongs with the
   robustness-sweep work); OWM extraction into its own repo (right move once a
   second implementation exists; wrong move today).
+
+### 2026-11-24 · Core bugfixes & error handling (branch: fix/core-bugs-and-error-handling)
+- **Model version duplicate 409**: `POST /v1/models/{model_id}/versions` previously
+  failed with an unhandled 500 `IntegrityError` when adding a version that already
+  existed. Added duplicate check against `reg.get_model_version()` returning `409 Conflict`.
+- **Config transition 404**: `POST /v1/configs/{config_id}:{action}` previously
+  crashed with an uncaught `KeyError` (500) when given a non-existent `config_id`.
+  Added upfront config validation and `KeyError` handling returning `404 Not Found`.
+- **Key rotation disclosure leak fix**: `clone_config_for_rotation()` in `store.py`
+  previously copied all labels from the old config into the newly rotated config. If
+  the old config had a published detector (`disclosure: "public-detector"`), the new
+  config falsely inherited this label even though `detector_ref` was reset to `None`
+  and the new key was not disclosed. Fixed by filtering out `disclosure` upon rotation.
+- **Windows path normalization in `ArtifactStore`**: `LocalArtifactStore.put()` used
+  native `Path` objects in URI string interpolation, creating `local://` URIs with
+  backslashes (`\`) on Windows. Updated to `rel.as_posix()` and normalized `_path()`
+  URI stripping to handle both forward slashes and legacy backslashes safely.
+- **UTF-8 file encoding**: Added explicit `encoding="utf-8"` across `read_text()` and
+  `write_text()` in `keys/local_sealed.py`, `schemes/descriptors.py`, and `cli/main.py`
+  preventing `UnicodeDecodeError` under default Windows code pages (e.g. cp1252).
+- **Tests**: Added regression tests in `tests/test_api.py`, `tests/test_lifecycle_and_evidence.py`,
+  and `tests/test_audit_and_keys.py`. All tests passing, ruff clean.

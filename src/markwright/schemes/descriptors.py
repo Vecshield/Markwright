@@ -31,9 +31,9 @@ def descriptor_schema() -> dict[str, Any]:
     packaged copy inside the wheel."""
     repo = Path(__file__).resolve().parents[3] / "schemas" / _PACKAGED_SCHEMA
     if repo.exists():
-        return json.loads(repo.read_text())
+        return json.loads(repo.read_text(encoding="utf-8"))
     packaged = resources.files("markwright") / "resources" / "schemas" / _PACKAGED_SCHEMA
-    return json.loads(packaged.read_text())
+    return json.loads(packaged.read_text(encoding="utf-8"))
 
 
 def _candidate_files(scheme_id: str) -> list[Any]:
@@ -71,7 +71,7 @@ def _load(scheme_id: str) -> tuple[dict[str, Any] | None, str | None]:
         try:
             if not f.is_file():
                 continue
-            doc = json.loads(f.read_text())
+            doc = json.loads(f.read_text(encoding="utf-8"))
         except Exception as e:
             last_problem = f"unreadable descriptor for '{scheme_id}': {e}"
             continue

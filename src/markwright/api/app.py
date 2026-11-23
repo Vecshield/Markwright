@@ -264,9 +264,12 @@ def list_models(_=Depends(require("registry.read"))):
 
 @app.post("/v1/models/{model_id}/versions", status_code=201)
 def add_version(model_id: str, v: VersionIn, p=Depends(require("registry.write"))):
-    if not STATE["registry"].get_model(model_id):
+    reg: RegistryStore = STATE["registry"]
+    if not reg.get_model(model_id):
         raise HTTPException(404, "no such model")
-    return STATE["registry"].add_version(model_id, v.model_version, v.tokenizer_ref, v.model_fingerprint)
+    if reg.get_model_version(model_id, v.model_version):
+        raise HTTPException(409, "version already exists")
+    return reg.add_version(model_id, v.model_version, v.tokenizer_ref, v.model_fingerprint)
 
 
 @app.post("/v1/models/{model_id}/versions/{version}/configs", status_code=201)
@@ -339,15 +342,19 @@ def transition(config_id: str, action: str, p=Depends(require("registry.write"))
     if not target:
         raise HTTPException(404)
     reg: RegistryStore = STATE["registry"]
+    cfg = reg.get_config(config_id)
+    if not cfg:
+        raise HTTPException(404, "no such config")
     if target == "active":
-        cfg = reg.get_config(config_id)
-        if cfg and cfg["calibration_ref"]:
+        if cfg["calibration_ref"]:
             run = reg.get_calibration(cfg["calibration_ref"])
             if PROFILE == "provider" and run and run["quality"] != "standard":
                 raise HTTPException(409, "provider profile refuses provisional calibrations; "
                                          "recalibrate on a production-size null corpus")
     try:
         cfg = reg.transition(config_id, target)
+    except KeyError:
+        raise HTTPException(404, "no such config") from None
     except ValueError as e:
         raise HTTPException(409, str(e)) from e
     details = {"quality": reg.get_calibration(cfg["calibration_ref"])["quality"]} \

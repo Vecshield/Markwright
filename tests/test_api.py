@@ -269,3 +269,21 @@ def test_demo_samples_are_generated_on_this_deployment(api):
                        headers=VERIFIER).json()["band"] in ("no_evidence", "weak_evidence")
     assert client.post("/v1/verify", json={"token_ids": short["token_ids"]},
                        headers=VERIFIER).json()["band"] == "insufficient_evidence"
+
+
+def test_add_version_conflict_returns_409(api):
+    client, _ = api
+    client.post("/v1/models", json={"model_id": "test-model-dupe"}, headers=OP)
+    r1 = client.post("/v1/models/test-model-dupe/versions",
+                     json={"model_version": "1.0", "tokenizer_ref": "gpt2"}, headers=OP)
+    assert r1.status_code == 201
+    r2 = client.post("/v1/models/test-model-dupe/versions",
+                     json={"model_version": "1.0", "tokenizer_ref": "gpt2"}, headers=OP)
+    assert r2.status_code == 409
+    assert "already exists" in r2.text
+
+
+def test_transition_missing_config_returns_404(api):
+    client, _ = api
+    r = client.post("/v1/configs/00000000-0000-0000-0000-000000000000:activate", headers=OP)
+    assert r.status_code == 404

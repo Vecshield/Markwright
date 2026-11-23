@@ -44,6 +44,23 @@ def test_rotation_moves_configs_and_keeps_old_key_verifying(api):
     assert prof["config_id"] == new_cfg and prof["key_version"] == 2
 
 
+def test_key_rotation_clears_public_detector_disclosure(api):
+    client, _ = api
+    cfg = bootstrap_parity_config(client)
+    client.post(f"/v1/configs/{cfg}/detector:publish", headers=OP)
+    old = client.get(f"/v1/configs/{cfg}", headers=OP).json()
+    assert old["labels"].get("disclosure") == "public-detector"
+    assert old["detector_ref"] is not None
+
+    key_id = old["key_ref"]
+    r = client.post(f"/v1/keys/{key_id}:rotate", headers=OP)
+    assert r.status_code == 200
+    new_cfg_id = r.json()["configs"][0]["new"]
+    new_cfg = client.get(f"/v1/configs/{new_cfg_id}", headers=OP).json()
+    assert new_cfg["detector_ref"] is None
+    assert new_cfg["labels"].get("disclosure") != "public-detector"
+
+
 def test_rotated_old_key_cannot_issue_generation_profiles(api):
     client, _ = api
     cfg = bootstrap_parity_config(client)

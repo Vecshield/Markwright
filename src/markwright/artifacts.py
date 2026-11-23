@@ -42,12 +42,13 @@ class LocalArtifactStore:
         tmp = path.with_suffix(path.suffix + ".tmp")
         tmp.write_bytes(data)
         os.replace(tmp, path)
-        return f"{self.scheme}{rel}"
+        return f"{self.scheme}{rel.as_posix()}"
 
     def _path(self, uri: str) -> Path:
         if not uri.startswith(self.scheme):
             raise ValueError(f"not a local artifact uri: {uri}")
-        rel = Path(uri.removeprefix(self.scheme))
+        raw_rel = uri.removeprefix(self.scheme).replace("\\", "/")
+        rel = Path(raw_rel)
         if rel.is_absolute() or ".." in rel.parts:
             raise ValueError(f"unsafe artifact uri: {uri}")
         return self.root / rel
