@@ -227,7 +227,7 @@ def audit_verify(bundle: Path, pubkey: Path = typer.Option(None, "--pubkey",
     """Offline: no server, no account — signature, head and hash chain."""
     from markwright.audit import verify_bundle
     ok, msg = verify_bundle(bundle.read_bytes(),
-                            pubkey.read_text().strip() if pubkey else None)
+                            pubkey.read_text(encoding="utf-8").strip() if pubkey else None)
     console.print(("[green]VALID[/green] " if ok else "[red]INVALID[/red] ") + msg)
     raise typer.Exit(0 if ok else 1)
 
@@ -248,7 +248,7 @@ def declaration_export(config_id: str,
     if r.status_code != 200:
         raise typer.Exit(_fail(r))
     doc = r.json()
-    out.write_text(json.dumps(doc, indent=2) + "\n")
+    out.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     m = doc["marking"][0]
     console.print(f"wrote {out}")
     console.print(f"  subject      {doc['subject']['uri']}")
@@ -271,7 +271,7 @@ def detector_publish(config_id: str, out: Path = typer.Option(None, "--out")):
     console.print(f"[yellow]{body['note']}[/yellow]")
     if out:
         d = _client().get(f"/v1/detectors/{config_id}")
-        out.write_text(json.dumps(d.json(), indent=1))
+        out.write_text(json.dumps(d.json(), indent=1), encoding="utf-8")
         console.print(f"wrote {out}")
 
 
@@ -306,7 +306,7 @@ def verify(text: str = typer.Option(None, "--text"), file: Path = typer.Option(N
            as_json: bool = typer.Option(False, "--json")):
     """Verify a text against registered configurations and print the evidence."""
     if file:
-        text = file.read_text()
+        text = file.read_text(encoding="utf-8")
     if not text:
         text = sys.stdin.read()
     if offline:

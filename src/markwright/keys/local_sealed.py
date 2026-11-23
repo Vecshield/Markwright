@@ -29,13 +29,13 @@ class LocalSealedVault:
         if not self.path.exists():
             salt = secrets.token_bytes(16)
             self._write({"salt": salt.hex(), "keys": {}})
-        self._doc = json.loads(self.path.read_text())
+        self._doc = json.loads(self.path.read_text(encoding="utf-8"))
         self._master = Scrypt(salt=bytes.fromhex(self._doc["salt"]), length=32, n=2**15, r=8, p=1).derive(self._pass)
 
     # -- storage -------------------------------------------------------------------
     def _write(self, doc: dict) -> None:
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(doc, indent=1))
+        tmp.write_text(json.dumps(doc, indent=1), encoding="utf-8")
         os.replace(tmp, self.path)
 
     def _seal(self, secret: bytes) -> dict:
