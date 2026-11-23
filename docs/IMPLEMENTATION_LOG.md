@@ -598,3 +598,17 @@ Watermark Manifests); Markwright is the reference implementation.
 - Deliberately NOT shipped: an image adapter (torch-heavy, belongs with the
   robustness-sweep work); OWM extraction into its own repo (right move once a
   second implementation exists; wrong move today).
+
+### 2026-11-23 — Verify evidence state + pytest deprecation
+- Fixed stale verification evidence in the dashboard Verify screen. Changing
+  the text, input mode, or false-positive target now clears the previous result
+  and error immediately. A revision guard prevents an in-flight verification
+  response from restoring evidence for an older set of inputs.
+- Added the pytest-asyncio fixture-loop scope explicitly to `pyproject.toml`,
+  removing the configuration deprecation warning.
+- Verification: `ruff check .` passed; dashboard `npm run build` passed;
+  tier-1 suite passed with the KGW package installed (`94 passed, 2 skipped,
+  28 deselected`). The initial tier-1 run found the KGW package absent from
+  the environment; installing `packages/markwright-scheme-kgw` resolved that
+  setup failure. Deliberately deferred: automated dashboard interaction tests,
+  because the dashboard currently has no test runner configured.

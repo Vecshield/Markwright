@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, DemoSample, fmtFpr, VerificationResult } from "../api";
 import { CandidateChart, EvidenceScale, PValueAxis, TokenGauge } from "../charts";
@@ -121,6 +121,7 @@ export default function Verify() {
   const [samples, setSamples] = useState<DemoSample[]>([]);
   const [sampleNotes, setSampleNotes] = useState<string[]>([]);
   const [activeSample, setActive] = useState<string | null>(null);
+  const evidenceRevision = useRef(0);
 
   useEffect(() => {
     api.samples()
@@ -133,6 +134,8 @@ export default function Verify() {
     : (() => { try { return (JSON.parse(input) as number[]).length; } catch { return 0; } })();
 
   function loadSample(s: DemoSample) {
+    evidenceRevision.current += 1;
+    setBusy(false);
     // Prefer readable text; token ids only when there is no prose to show.
     if (s.kind === "text" && s.text) {
       setMode("text");
@@ -146,21 +149,32 @@ export default function Verify() {
     setError(null);
   }
 
+  function invalidateEvidence() {
+    evidenceRevision.current += 1;
+    setBusy(false);
+    setResult(null);
+    setError(null);
+  }
+
   async function run() {
+    const revision = evidenceRevision.current;
     setBusy(true);
     setError(null);
     setResult(null);
     try {
       const fprVal = fpr ? Number(fpr) : undefined;
-      setResult(mode === "text"
+      const nextResult = mode === "text"
         ? await api.verifyText(input, fprVal)
-        : await api.verifyIds(JSON.parse(input) as number[], fprVal));
+        : await api.verifyIds(JSON.parse(input) as number[], fprVal);
+      if (revision === evidenceRevision.current) setResult(nextResult);
     } catch (e) {
-      setError(e instanceof SyntaxError
-        ? new Error("That is not a JSON array of token ids. Example: [312, 9981, 44]")
-        : e);
+      if (revision === evidenceRevision.current) {
+        setError(e instanceof SyntaxError
+          ? new Error("That is not a JSON array of token ids. Example: [312, 9981, 44]")
+          : e);
+      }
     } finally {
-      setBusy(false);
+      if (revision === evidenceRevision.current) setBusy(false);
     }
   }
 
@@ -199,7 +213,11 @@ export default function Verify() {
       <div className="card">
         <textarea
           value={input}
-          onChange={(e) => { setInput(e.target.value); setActive(null); }}
+          onChange={(e) => {
+            invalidateEvidence();
+            setInput(e.target.value);
+            setActive(null);
+          }}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && input.trim() && !busy) void run();
           }}
@@ -211,15 +229,24 @@ export default function Verify() {
         />
         <div className="row">
           <label>
-            <input type="radio" checked={mode === "text"} onChange={() => setMode("text")} /> text
+            <input type="radio" checked={mode === "text"} onChange={() => {
+              invalidateEvidence();
+              setMode("text");
+            }} /> text
           </label>
           <label>
-            <input type="radio" checked={mode === "ids"} onChange={() => setMode("ids")} /> token ids
+            <input type="radio" checked={mode === "ids"} onChange={() => {
+              invalidateEvidence();
+              setMode("ids");
+            }} /> token ids
           </label>
           <label>
             false-positive target{" "}
             <input style={{ width: "6rem", font: "inherit" }} placeholder="deployment value"
-              value={fpr} onChange={(e) => setFpr(e.target.value)} />{" "}
+              value={fpr} onChange={(e) => {
+                invalidateEvidence();
+                setFpr(e.target.value);
+              }} />{" "}
             <span className="hint">(can only be lowered)</span>
           </label>
           <button onClick={run} disabled={busy || !input.trim()}>

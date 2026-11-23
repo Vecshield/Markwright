@@ -58,6 +58,7 @@ packages = ["src/markwright"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+asyncio_default_fixture_loop_scope = "function"
 markers = [
   "torch: needs torch+transformers (tier 2; offline, no model weights)",
   "slow: full e2e with a small model download (tier 3; nightly/release)",
